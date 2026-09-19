@@ -7,10 +7,6 @@ on:
         description: Successful BREAKOUT_CANDIDATE workflow run ID
         required: true
         default: "35429258933"
-  pull_request:
-    branches: [main]
-    paths:
-      - .github/t1-execution-trigger
 
 permissions:
   contents: read
