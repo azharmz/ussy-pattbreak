@@ -7,10 +7,6 @@ on:
         description: Successful T1_EXECUTION workflow run ID
         required: true
         default: "35433756904"
-  pull_request:
-    branches: [main]
-    paths:
-      - .github/open-positions-trigger
 
 permissions:
   contents: read
