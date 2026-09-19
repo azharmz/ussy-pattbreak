@@ -34,8 +34,10 @@ def main():
     data_path=(inp/"open-positions.jsonl") if (inp/"open-positions.jsonl").exists() else (inp/"lifecycle.jsonl")
     meta=json.loads(meta_path.read_text()); raw=data_path.read_bytes()
     if hashlib.sha256(raw).hexdigest()!=meta["source_hash"].removeprefix("sha256:"): raise ValueError("position checkpoint checksum mismatch")
+    prior_asof=date.fromisoformat(meta["execution_ready"]["as_of_date"]) if meta.get("execution_ready") else None
     frozen,body=read_and_freeze_ready(client(),os.environ["R2_BUCKET_NAME"],producer_commit=os.getenv("GITHUB_SHA","local"),producer_run=os.getenv("GITHUB_RUN_ID","local"))
     ready_asof=date.fromisoformat(frozen["ready"]["as_of_date"])
+    if prior_asof is not None and ready_asof < prior_asof: raise ValueError("READY regressed behind durable lifecycle checkpoint")
     df=pd.read_parquet(io.BytesIO(body),columns=["date","security_id","open","high","close","volume"])
     df["date"]=pd.to_datetime(df["date"]).dt.tz_localize(None); df["security_id"]=df["security_id"].astype(str)
     output=[]; counts={}; reasons={}
