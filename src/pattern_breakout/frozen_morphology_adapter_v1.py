@@ -29,7 +29,10 @@ REQUIRED_COLUMNS = (
 def ready_v2_frame(parquet_body: bytes, frozen_ready: dict[str, Any]) -> pd.DataFrame:
     """Materialize only the exact Parquet already proven by FROZEN_READY."""
     source_hash = frozen_ready.get("source_hash", "")
-    if hashlib.sha256(parquet_body).hexdigest() != source_hash:
+    if not isinstance(source_hash, str) or not source_hash.startswith("sha256:"):
+        raise ValueError("FROZEN_READY source_hash must use sha256:<hex> identity")
+    expected_hash = source_hash.removeprefix("sha256:")
+    if hashlib.sha256(parquet_body).hexdigest() != expected_hash:
         raise ValueError("Parquet bytes do not match FROZEN_READY source_hash")
     if frozen_ready.get("stage") != CheckpointStage.FROZEN_READY.value:
         raise ValueError("expected FROZEN_READY checkpoint")
