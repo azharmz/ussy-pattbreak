@@ -19,10 +19,10 @@ def position():
 def test_defensive_loss_uses_actual_purchase_price():
     x = evaluate_daily_technical_exit(
         position=position(),
-        observation=DailyTechnicalObservation(date(2026, 9, 8), close=93.84))
+        observation=DailyTechnicalObservation(date(2026, 9, 8), close=94.86))
     assert x.state == TechnicalExitState.DEFENSIVE_LOSS
     assert x.actionable is True
-    assert x.reference_level == 93.84
+    assert x.reference_level == 94.86
 
 
 def test_normal_profit_zone_is_measured_from_proper_buy_point():
