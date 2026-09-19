@@ -11,6 +11,7 @@ from pattern_breakout.exit_v1 import PositionTechnicalContext, DailyTechnicalObs
 from pattern_breakout.eight_week_rule_v1 import EightWeekRuleContext, assess_eight_week_rule
 from pattern_breakout.exit_arbitration_v1 import arbitrate_exit
 from pattern_breakout.lifecycle_arbitration_v1 import apply_exit_arbitration
+from pattern_breakout.lifecycle_store_v1 import publish_lifecycle_checkpoint
 
 VERSION="pattern-breakout-daily-lifecycle-checkpoint-v1"
 
