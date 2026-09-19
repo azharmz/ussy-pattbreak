@@ -1,0 +1,51 @@
+name: Build T1 execution checkpoint
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_run_id:
+        description: Successful BREAKOUT_CANDIDATE workflow run ID
+        required: true
+        default: "35429258933"
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/t1-execution-trigger
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  t1-execution:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+      CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id || '35429258933' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install -e . boto3
+      - name: Download frozen candidate checkpoint
+        uses: actions/download-artifact@v4
+        with:
+          name: breakout-candidate-${{ env.CANDIDATE_RUN_ID }}
+          path: upstream
+          run-id: ${{ env.CANDIDATE_RUN_ID }}
+          github-token: ${{ github.token }}
+      - name: Build causal T1 execution checkpoint
+        run: python scripts/build_t1_execution.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: t1-execution-${{ github.run_id }}
+          path: |
+            checkpoints/t1-execution.json
+            checkpoints/t1-execution.jsonl
+          if-no-files-found: error
+          retention-days: 30
