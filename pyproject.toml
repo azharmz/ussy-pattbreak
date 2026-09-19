@@ -5,7 +5,8 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ussy-pattern-breakout"
 version = "0.1.0"
-requires-python = ">=3.11"\ndependencies = ["pandas>=2", "pyarrow>=15"]
+requires-python = ">=3.11"
+dependencies = ["pandas>=2", "pyarrow>=15"]
 
 [tool.setuptools]
 package-dir = {"" = "src"}
