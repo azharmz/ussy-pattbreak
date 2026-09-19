@@ -1,0 +1,51 @@
+name: Build breakout candidate checkpoint
+
+on:
+  workflow_dispatch:
+    inputs:
+      morphology_run_id:
+        description: Successful RAW_ONEIL_MORPHOLOGY workflow run ID
+        required: true
+        default: "35428239292"
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/breakout-candidate-trigger
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  breakout-candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+      MORPHOLOGY_RUN_ID: ${{ inputs.morphology_run_id || '35428239292' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install -e . boto3
+      - name: Download frozen morphology checkpoint
+        uses: actions/download-artifact@v4
+        with:
+          name: raw-oneil-morphology-${{ env.MORPHOLOGY_RUN_ID }}
+          path: upstream
+          run-id: ${{ env.MORPHOLOGY_RUN_ID }}
+          github-token: ${{ github.token }}
+      - name: Build BREAKOUT_CANDIDATE checkpoint
+        run: python scripts/build_breakout_candidate.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: breakout-candidate-${{ github.run_id }}
+          path: |
+            checkpoints/breakout-candidate.json
+            checkpoints/breakout-candidate.jsonl
+          if-no-files-found: error
+          retention-days: 30
