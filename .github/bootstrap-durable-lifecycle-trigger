@@ -1,2 +1,3 @@
 positions_run=35434688369
 purpose=one-time-durable-bootstrap
+retry=1
