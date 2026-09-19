@@ -18,6 +18,8 @@ Status: DESIGN FROZEN FOR CORE IMPLEMENTATION
 12. No composite score in Core v1.
 13. No Wyckoff, Darvas, MACD, RSI, stochastic, Bollinger, or unrelated indicators in Core v1.
 14. Rule provenance must distinguish ORIGINAL, OPERATIONALIZATION, DATA_ADAPTATION, PROXY, ENGINEERING, UNAVAILABLE.
+15. `azharmz/ussy-pattern-breakout` is the authoritative Pattern Breakout implementation repository.
+16. Any Pattern Breakout branch previously staged in `azharmz/ussy-canslim-research` is historical/reference-only and must not be developed or promoted as the authoritative implementation.
 
 ## Recovery boundaries
 
@@ -38,3 +40,5 @@ Durable checkpoints must carry source identity/hash, schema/version, contract/co
 ## Separation
 
 CAN SLIM v1 remains a frozen historical baseline. CAN SLIM v2 remains fundamental-first. Pattern Breakout is an independent technical product and must use its own namespaces and contracts.
+
+Cross-repository code from CAN SLIM may be consulted only as audited historical/reference material. Pattern Breakout changes are implemented and promoted in `azharmz/ussy-pattern-breakout`.
