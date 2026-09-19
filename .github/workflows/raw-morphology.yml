@@ -2,9 +2,9 @@ name: Build raw ONeil morphology checkpoint
 
 on:
   workflow_dispatch:
-  push:
+  pull_request:
     branches:
-      - run/raw-morphology-20260919
+      - main
     paths:
       - .github/raw-morphology-trigger
 
