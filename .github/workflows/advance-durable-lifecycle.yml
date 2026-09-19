@@ -2,6 +2,10 @@ name: Advance durable lifecycle
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/final-durable-resume-trigger
 
 permissions:
   contents: read
