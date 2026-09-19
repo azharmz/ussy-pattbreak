@@ -1,3 +1,4 @@
 run=2026-09-19
 purpose=first-production-raw-morphology-checkpoint
 retry=1
+retry=3
