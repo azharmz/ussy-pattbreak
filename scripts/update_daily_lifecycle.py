@@ -11,6 +11,7 @@ from pattern_breakout.exit_v1 import PositionTechnicalContext, DailyTechnicalObs
 from pattern_breakout.eight_week_rule_v1 import EightWeekRuleContext, assess_eight_week_rule
 from pattern_breakout.exit_arbitration_v1 import arbitrate_exit
 from pattern_breakout.lifecycle_arbitration_v1 import apply_exit_arbitration
+from pattern_breakout.lifecycle_store_v1 import publish_lifecycle_checkpoint
 
 VERSION="pattern-breakout-daily-lifecycle-checkpoint-v1"
 
@@ -29,10 +30,14 @@ def dump(p, first, last):
 def main():
     ap=argparse.ArgumentParser(); ap.add_argument("--input-dir",default="upstream"); ap.add_argument("--output-dir",default="checkpoints"); a=ap.parse_args()
     inp=Path(a.input_dir); out=Path(a.output_dir); out.mkdir(parents=True,exist_ok=True)
-    meta=json.loads((inp/"open-positions.json").read_text()); raw=(inp/"open-positions.jsonl").read_bytes()
+    meta_path=(inp/"open-positions.json") if (inp/"open-positions.json").exists() else (inp/"lifecycle.json")
+    data_path=(inp/"open-positions.jsonl") if (inp/"open-positions.jsonl").exists() else (inp/"lifecycle.jsonl")
+    meta=json.loads(meta_path.read_text()); raw=data_path.read_bytes()
     if hashlib.sha256(raw).hexdigest()!=meta["source_hash"].removeprefix("sha256:"): raise ValueError("position checkpoint checksum mismatch")
+    prior_asof=date.fromisoformat(meta["execution_ready"]["as_of_date"]) if meta.get("execution_ready") else None
     frozen,body=read_and_freeze_ready(client(),os.environ["R2_BUCKET_NAME"],producer_commit=os.getenv("GITHUB_SHA","local"),producer_run=os.getenv("GITHUB_RUN_ID","local"))
     ready_asof=date.fromisoformat(frozen["ready"]["as_of_date"])
+    if prior_asof is not None and ready_asof < prior_asof: raise ValueError("READY regressed behind durable lifecycle checkpoint")
     df=pd.read_parquet(io.BytesIO(body),columns=["date","security_id","open","high","close","volume"])
     df["date"]=pd.to_datetime(df["date"]).dt.tz_localize(None); df["security_id"]=df["security_id"].astype(str)
     output=[]; counts={}; reasons={}
