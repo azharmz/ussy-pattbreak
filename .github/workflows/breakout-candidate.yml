@@ -7,10 +7,6 @@ on:
         description: Successful RAW_ONEIL_MORPHOLOGY workflow run ID
         required: true
         default: "35428239292"
-  pull_request:
-    branches: [main]
-    paths:
-      - .github/breakout-candidate-trigger
 
 permissions:
   contents: read
