@@ -1,0 +1,43 @@
+name: Build open positions checkpoint
+
+on:
+  workflow_dispatch:
+    inputs:
+      t1_run_id:
+        description: Successful T1_EXECUTION workflow run ID
+        required: true
+        default: "35433756904"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  open-positions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      T1_RUN_ID: ${{ inputs.t1_run_id || '35433756904' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install -e .
+      - name: Download frozen T1 checkpoint
+        uses: actions/download-artifact@v4
+        with:
+          name: t1-execution-${{ env.T1_RUN_ID }}
+          path: upstream
+          run-id: ${{ env.T1_RUN_ID }}
+          github-token: ${{ github.token }}
+      - name: Open lifecycle positions
+        run: python scripts/build_open_positions.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: open-positions-${{ github.run_id }}
+          path: |
+            checkpoints/open-positions.json
+            checkpoints/open-positions.jsonl
+          if-no-files-found: error
+          retention-days: 30

@@ -21,7 +21,7 @@ def checkpoint(body):
     return {
         "stage": "frozen_ready",
         "schema_version": "ussy-data-ready-v2",
-        "source_hash": hashlib.sha256(body).hexdigest(),
+        "source_hash": f"sha256:{hashlib.sha256(body).hexdigest()}",
     }
 
 
