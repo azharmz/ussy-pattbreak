@@ -10,8 +10,8 @@ from datetime import date
 from enum import Enum
 from typing import Optional
 
-EXIT_VERSION = "pattern-breakout-technical-exit-v1"
-DEFENSIVE_LOSS_PCT = 0.08
+EXIT_VERSION = "pattern-breakout-technical-exit-v1.1"
+DEFENSIVE_LOSS_PCT = 0.07
 NORMAL_PROFIT_ZONE_LOW = 0.20
 NORMAL_PROFIT_ZONE_HIGH = 0.25
 
@@ -89,7 +89,7 @@ def evaluate_daily_technical_exit(
         return TechnicalExitEvidence(
             position.position_id, position.security_id, observation.observation_date,
             TechnicalExitState.DEFENSIVE_LOSS, True, defensive_level, observation.close,
-            "ORIGINAL_DEFENSIVE_LOSS_7_8_PERCENT__OPERATIONALIZED_AT_8_PERCENT",
+            "ORIGINAL_IBD_7_PERCENT_MAX_LOSS_FROM_PURCHASE_PRICE",
         )
 
     if observation.close >= profit_floor:
