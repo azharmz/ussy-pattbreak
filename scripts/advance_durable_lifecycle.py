@@ -13,7 +13,7 @@ def main():
     s3=client(); bucket=os.environ["R2_BUCKET_NAME"]
     _,meta,raw=load_current_lifecycle(s3,bucket)
     with tempfile.TemporaryDirectory() as td:
-        p=Path(td); (p/"open-positions.json").write_text(__import__("json").dumps(meta)); (p/"open-positions.jsonl").write_bytes(raw)
+        p=Path(td); (p/"lifecycle.json").write_text(__import__("json").dumps(meta)); (p/"lifecycle.jsonl").write_bytes(raw)
         import sys
         old=sys.argv; sys.argv=["update_daily_lifecycle.py","--input-dir",td,"--output-dir","checkpoints"]
         try: update_main()
