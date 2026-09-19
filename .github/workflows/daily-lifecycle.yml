@@ -1,0 +1,50 @@
+name: Update daily lifecycle checkpoint
+
+on:
+  workflow_dispatch:
+    inputs:
+      positions_run_id:
+        description: Successful OPEN POSITIONS workflow run ID
+        required: true
+        default: "35434688369"
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/daily-lifecycle-trigger
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  lifecycle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+      POSITIONS_RUN_ID: ${{ inputs.positions_run_id || '35434688369' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: python -m pip install -e . boto3
+      - name: Download exact position checkpoint
+        uses: actions/download-artifact@v4
+        with:
+          name: open-positions-${{ env.POSITIONS_RUN_ID }}
+          path: upstream
+          run-id: ${{ env.POSITIONS_RUN_ID }}
+          github-token: ${{ github.token }}
+      - name: Advance lifecycle causally
+        run: python scripts/update_daily_lifecycle.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lifecycle-${{ github.run_id }}
+          path: |
+            checkpoints/lifecycle.json
+            checkpoints/lifecycle.jsonl
+          if-no-files-found: error
+          retention-days: 30
