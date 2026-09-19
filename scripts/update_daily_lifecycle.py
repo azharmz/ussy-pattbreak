@@ -71,5 +71,7 @@ def main():
         if y.get("exit_reason"): reasons[y["exit_reason"]]=reasons.get(y["exit_reason"],0)+1
     payload="".join(json.dumps(x,sort_keys=True,separators=(",",":"))+"\n" for x in output); digest=hashlib.sha256(payload.encode()).hexdigest()
     m={"stage":"lifecycle","schema_version":"pattern-breakout-position-v1.1","contract_version":VERSION,"source_identity":f"positions:{meta['source_hash']}","source_hash":f"sha256:{digest}","created_at":datetime.now(timezone.utc).isoformat(),"producer_commit":os.getenv("GITHUB_SHA","local"),"producer_run":os.getenv("GITHUB_RUN_ID","local"),"upstream_position_hash":meta["source_hash"],"execution_ready":{"source_identity":frozen["source_identity"],"source_hash":frozen["source_hash"],"as_of_date":frozen["ready"]["as_of_date"],"parquet_key":frozen["ready"]["parquet_key"]},"summary":{"position_count":len(output),"state_counts":counts,"exit_reasons":reasons}}
-    (out/"lifecycle.json").write_text(json.dumps(m,indent=2,sort_keys=True)+"\n"); (out/"lifecycle.jsonl").write_text(payload); print(json.dumps(m["summary"],sort_keys=True))
+    (out/"lifecycle.json").write_text(json.dumps(m,indent=2,sort_keys=True)+"\n"); (out/"lifecycle.jsonl").write_text(payload)
+    pointer=publish_lifecycle_checkpoint(client(),os.environ["R2_BUCKET_NAME"],metadata=m,jsonl=payload.encode())
+    print(json.dumps({"summary":m["summary"],"durable_pointer":pointer},sort_keys=True))
 if __name__=="__main__": main()
