@@ -42,6 +42,7 @@ def main():
         for line in f:
             x=json.loads(line)
             if x.get("normalized_status")!="RECOGNIZED": continue
+            if x.get("asof_date") != asof.isoformat(): raise ValueError("morphology assessment asof_date does not match frozen run as_of_date")
             recognized+=1; sid=str(x["security_id"]); o=obs.get(sid)
             assessment=FrozenOneilAssessment(assessment_id=x["assessment_id"],security_id=sid,assessment_date=asof,pattern_type=x["pattern"],pattern_accepted=True,pivot_level=x.get("pivot_level"),ambiguous=False,rejected=False)
             observation=BreakoutObservation(bar_date=asof,prior_close=o[0] if o else None,close=o[1] if o else None,volume=o[2] if o else None,prior_50_volume_mean=o[3] if o else None,completed_bar=True)
