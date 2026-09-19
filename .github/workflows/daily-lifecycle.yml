@@ -7,10 +7,6 @@ on:
         description: Successful OPEN POSITIONS workflow run ID
         required: true
         default: "35434688369"
-  pull_request:
-    branches: [main]
-    paths:
-      - .github/daily-lifecycle-trigger
 
 permissions:
   contents: read
