@@ -2,6 +2,12 @@
 
 Technical-only swing system built around O'Neil-style proper-base morphology, pivot breakout, causal T+1 Open execution, and technical exits.
 
+## Repository authority
+
+This repository, `azharmz/ussy-pattern-breakout`, is the **authoritative implementation** for Pattern Breakout.
+
+Any earlier Pattern Breakout branch or implementation staged inside `azharmz/ussy-canslim-research` is **historical/reference material only**. It must not receive new Pattern Breakout development, patches, or production promotion. Code may be audited there as a reference, but authoritative implementation changes belong here.
+
 ## Core v1
 
 ```
@@ -28,4 +34,4 @@ Canonical morphology dependency:
 
 Weinstein Stage Analysis and Minervini/VCP are future independently versioned evidence extensions, not Core v1 gates.
 
-See `docs/architecture/core-v1.md` and `docs/audits/existing-entry-exit-assets-v1.md`.
+See `docs/architecture/core-v1.md`, `docs/architecture/core-v1-e2e-contract.md`, and `docs/audits/existing-entry-exit-assets-v1.md`.
