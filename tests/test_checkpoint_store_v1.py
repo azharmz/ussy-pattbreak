@@ -1,4 +1,4 @@
-import hashlib, json
+import gzip, hashlib, json
 import pytest
 from pattern_breakout.checkpoint_store_v1 import publish_checkpoint,load_current_checkpoint
 
@@ -6,8 +6,8 @@ class Body:
  def __init__(self,b): self.b=b
  def read(self): return self.b
 class S3:
- def __init__(self): self.x={}
- def put_object(self,**k): self.x[(k["Bucket"],k["Key"])]=k["Body"]
+ def __init__(self): self.x={}; self.kw={}
+ def put_object(self,**k): self.x[(k["Bucket"],k["Key"])]=k["Body"]; self.kw[(k["Bucket"],k["Key"])]=k
  def get_object(self,**k): return {"Body":Body(self.x[(k["Bucket"],k["Key"])])}
 
 def test_round_trip_and_content_addressed_idempotency():
@@ -17,6 +17,23 @@ def test_round_trip_and_content_addressed_idempotency():
  assert p1["jsonl_key"]==p2["jsonl_key"]
  p,m2,r=load_current_checkpoint(s,"b",stage="candidates")
  assert r==raw and m2==m
+
+def test_morphology_gzip_preserves_logical_identity_and_readback():
+ s=S3(); raw=(b'{"x":1}\n'*1000); h=hashlib.sha256(raw).hexdigest(); m={"source_hash":"sha256:"+h}
+ p=publish_checkpoint(s,"b",stage="morphology",as_of_date="2026-09-20",metadata=m,jsonl=raw)
+ assert p["jsonl_key"].endswith(".jsonl.gz") and p["source_hash"]=="sha256:"+h
+ stored=s.x[("b",p["jsonl_key"])]
+ assert gzip.decompress(stored)==raw and len(stored)<len(raw)
+ assert s.kw[("b",p["jsonl_key"])]["ContentEncoding"]=="gzip"
+ _,meta,out=load_current_checkpoint(s,"b",stage="morphology")
+ assert out==raw and meta["storage"]["logical_sha256"]==h
+ assert meta["storage"]["stored_sha256"]==hashlib.sha256(stored).hexdigest()
+
+def test_morphology_stored_corruption_fails_closed():
+ s=S3(); raw=b'{"x":1}\n'; h=hashlib.sha256(raw).hexdigest()
+ p=publish_checkpoint(s,"b",stage="morphology",as_of_date="2026-09-20",metadata={"source_hash":"sha256:"+h},jsonl=raw)
+ s.x[("b",p["jsonl_key"])]=s.x[("b",p["jsonl_key"])]+b"x"
+ with pytest.raises(ValueError): load_current_checkpoint(s,"b",stage="morphology")
 
 def test_rejects_hash_mismatch():
  with pytest.raises(ValueError):
