@@ -1,0 +1,48 @@
+name: Migrate current dashboard opportunities to gzip
+on:
+  push:
+    branches: ["storage/migrate-dashboard-current-gzip"]
+    paths: [".github/workflows/migrate-current-dashboard-gzip.yml"]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+    steps:
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: python -m pip install boto3
+      - name: Publish gzip sibling, verify, promote pointer last
+        shell: python
+        run: |
+          import boto3,gzip,hashlib,json,os
+          from datetime import datetime,timezone
+          s3=boto3.client("s3",endpoint_url=os.environ["R2_ENDPOINT"],aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],region_name="auto")
+          b=os.environ["R2_BUCKET_NAME"]; prefix="pattern-breakout/production/dashboard-opportunities"; pk=prefix+"/current.json"
+          original=s3.get_object(Bucket=b,Key=pk)["Body"].read(); p=json.loads(original)
+          if p.get("representation")=="ndjson+gzip": print("ALREADY_MIGRATED="+json.dumps(p)); raise SystemExit(0)
+          raw=s3.get_object(Bucket=b,Key=p["jsonl_key"])["Body"].read(); logical=hashlib.sha256(raw).hexdigest()
+          if p["source_hash"].removeprefix("sha256:")!=logical: raise RuntimeError("legacy logical mismatch")
+          meta=json.loads(s3.get_object(Bucket=b,Key=p["metadata_key"])["Body"].read())
+          if meta["source_hash"].removeprefix("sha256:")!=logical: raise RuntimeError("legacy metadata mismatch")
+          rows=raw.count(b"\n")
+          if rows!=meta["record_count"]: raise RuntimeError("record count mismatch")
+          stored=gzip.compress(raw,compresslevel=6,mtime=0); sh=hashlib.sha256(stored).hexdigest()
+          gkey=f"{prefix}/runs/{p['as_of_date']}/{logical}.jsonl.gz"; mkey=f"{prefix}/runs/{p['as_of_date']}/{logical}.storage-v2.json"
+          storage={"representation":"ndjson+gzip","compression":{"codec":"gzip","level":6,"mtime":0},"logical_sha256":logical,"logical_bytes":len(raw),"stored_sha256":sh,"stored_bytes":len(stored),"compression_ratio":len(stored)/len(raw),"semantic_verification":"sha256-byte-exact-after-decompress"}
+          meta2=dict(meta); meta2["storage"]=storage
+          s3.put_object(Bucket=b,Key=gkey,Body=stored,ContentType="application/x-ndjson",ContentEncoding="gzip")
+          s3.put_object(Bucket=b,Key=mkey,Body=(json.dumps(meta2,sort_keys=True,separators=(",",":"))+"\n").encode(),ContentType="application/json")
+          rb=s3.get_object(Bucket=b,Key=gkey)["Body"].read()
+          if hashlib.sha256(rb).hexdigest()!=sh or gzip.decompress(rb)!=raw: raise RuntimeError("gzip readback mismatch")
+          if s3.get_object(Bucket=b,Key=pk)["Body"].read()!=original: raise RuntimeError("pointer moved during migration")
+          p2={"schema_version":"pattern-breakout-checkpoint-pointer-v2","stage":"dashboard-opportunities","as_of_date":p["as_of_date"],"source_hash":"sha256:"+logical,"jsonl_key":gkey,"metadata_key":mkey,"representation":"ndjson+gzip","stored_hash":"sha256:"+sh,"stored_bytes":len(stored),"logical_bytes":len(raw),"updated_at":datetime.now(timezone.utc).isoformat()}
+          s3.put_object(Bucket=b,Key=pk,Body=(json.dumps(p2,sort_keys=True,separators=(",",":"))+"\n").encode(),ContentType="application/json")
+          if json.loads(s3.get_object(Bucket=b,Key=pk)["Body"].read())!=p2: raise RuntimeError("pointer readback mismatch")
+          print("MIGRATION_RESULT="+json.dumps({"pointer":p2,"record_count":rows,"legacy_raw_key":p["jsonl_key"],"legacy_raw_retained":True,"saved_bytes":len(raw)-len(stored),"saved_pct":(1-len(stored)/len(raw))*100},sort_keys=True))
