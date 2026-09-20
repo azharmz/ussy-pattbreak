@@ -1,6 +1,14 @@
 import {syncProjection} from "./d1/projector.js";
 const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store"}});
 
+async function syncIfNeeded(env){
+ const run=await env.DB.prepare("SELECT * FROM projection_runs ORDER BY as_of_date DESC, projected_at DESC LIMIT 1").first();
+ const lifecycle=await env.R2_BUCKET.get("pattern-breakout/production/lifecycle/current.json");
+ if(!lifecycle)throw Error("missing R2 object: pattern-breakout/production/lifecycle/current.json");
+ const pointer=await lifecycle.json();
+ if(!run || String(run.lifecycle_source_hash||"")!==String(pointer.source_hash||"")) return syncProjection(env);
+ return {changed:false,run_id:run.run_id,as_of_date:run.as_of_date};
+}
 async function health(db){
  const run=await db.prepare("SELECT * FROM projection_runs ORDER BY as_of_date DESC, projected_at DESC LIMIT 1").first();
  const states=await db.prepare("SELECT state, COUNT(*) count FROM positions GROUP BY state").all();
@@ -33,6 +41,7 @@ export default {async fetch(request,env){
  const url=new URL(request.url); const p=url.pathname;
  try{
   if(p==="/api/admin/sync" && request.method==="POST"){if(request.headers.get("authorization")!==`Bearer ${env.SYNC_TOKEN}`)return json({error:"unauthorized"},401);return json(await syncProjection(env));}
+  if(request.method==="GET" && p.startsWith("/api/")) await syncIfNeeded(env);
   if(p==="/api/health")return json(await health(env.DB));
   if(p==="/api/opportunities")return json(await opportunities(env.DB,url));
   if(p.startsWith("/api/opportunities/")){const x=await detail(env.DB,decodeURIComponent(p.split("/").pop()));return x?json(x):json({error:"not_found"},404)}
