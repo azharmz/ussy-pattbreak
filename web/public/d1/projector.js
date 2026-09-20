@@ -22,6 +22,7 @@ async function loadStage(env,pointerKey){
  return {pointer:p,meta,rows:parseLines(bytes),hash:actual};
 }
 const id=(...x)=>x.filter(v=>v!=null).join(":");
+const sql=v=>v===undefined?null:v;
 const dist=(close,pivot)=>close==null||pivot==null?null:(Number(close)/Number(pivot)-1)*100;
 
 export async function buildProjection(env){
@@ -59,11 +60,11 @@ export async function syncProjection(env){
  for(const q of p.opportunities){
   const b=q.breakout,t=q.t1, close=b?.close??null;
   ops.push(env.DB.prepare("INSERT OR REPLACE INTO opportunities(assessment_id,base_id,lineage_id,security_id,ticker,pattern_type,morphology_status,native_state,candidate_semantics,structural_start,structural_end,pivot_source_date,pivot_level,depth_pct,as_of_date,as_of_close,distance_to_pivot_pct,breakout_state,breakout_close,volume_ratio,signal_date,t1_open,open_extension_pct,t1_status,entry_date,entry_price,source_hash,projection_run_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
-   .bind(q.assessment_id,q.base_id,q.lineage_id,String(q.security_id),q.ticker,q.pattern,q.normalized_status,q.native_state,q.candidate_semantics,q.structural_start,q.structural_end,q.pivot_source_date,q.pivot_level,q.depth_pct,q.asof_date,close,dist(close,q.pivot_level),b?.breakout_state||"TECHNICAL_BREAKOUT_CANDIDATE",close,b?.breakout_volume_ratio??null,b?.signal_date??null,t?.next_open??null,t?.open_extension_pct??null,t?.entry_state??null,t?.fill_date??null,t?.fill_price??null,p.stages.m.hash,runId));
+   .bind(...[q.assessment_id,q.base_id,q.lineage_id,String(q.security_id),q.ticker,q.pattern,q.normalized_status,q.native_state,q.candidate_semantics,q.structural_start,q.structural_end,q.pivot_source_date,q.pivot_level,q.depth_pct,q.asof_date,close,dist(close,q.pivot_level),b?.breakout_state||"TECHNICAL_BREAKOUT_CANDIDATE",close,b?.breakout_volume_ratio??null,b?.signal_date??null,t?.next_open??null,t?.open_extension_pct??null,t?.entry_state??null,t?.fill_date??null,t?.fill_price??null,p.stages.m.hash,runId].map(sql)));
  }
  for(let i=0;i<ops.length;i+=80)await env.DB.batch(ops.slice(i,i+80));
  const pos=[];
- for(const x of p.positions)pos.push(env.DB.prepare("INSERT OR REPLACE INTO positions(position_id,candidate_id,security_id,pivot_level,entry_date,entry_price,state,exit_signal_date,exit_reason,exit_date,exit_price,eight_week_first_rapid_winner_date,last_evaluated_date,as_of_date,source_hash,projection_run_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(x.position_id,x.candidate_id,String(x.security_id),x.pivot_level,x.entry_date,x.entry_price,x.state,x.exit_signal_date,x.exit_reason,x.exit_date,x.exit_price,x.eight_week_first_rapid_winner_date,x.last_evaluated_date,asof,p.stages.l.hash,runId));
+ for(const x of p.positions)pos.push(env.DB.prepare("INSERT OR REPLACE INTO positions(position_id,candidate_id,security_id,pivot_level,entry_date,entry_price,state,exit_signal_date,exit_reason,exit_date,exit_price,eight_week_first_rapid_winner_date,last_evaluated_date,as_of_date,source_hash,projection_run_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(...[x.position_id,x.candidate_id,String(x.security_id),x.pivot_level,x.entry_date,x.entry_price,x.state,x.exit_signal_date,x.exit_reason,x.exit_date,x.exit_price,x.eight_week_first_rapid_winner_date,x.last_evaluated_date,asof,p.stages.l.hash,runId].map(sql)));
  for(let i=0;i<pos.length;i+=80)await env.DB.batch(pos.slice(i,i+80));
  return {run_id:runId,as_of_date:asof,opportunities:ops.length,positions:pos.length};
 }
