@@ -1,0 +1,67 @@
+name: Cleanup duplicate legacy morphology raw
+
+on:
+  push:
+    branches: ["storage/cleanup-legacy-raw"]
+    paths: [".github/workflows/cleanup-legacy-morphology-raw.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+    steps:
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: python -m pip install boto3
+      - name: Delete only byte-equivalent superseded raw sibling
+        shell: python
+        run: |
+          import boto3,gzip,hashlib,json,os
+          s3=boto3.client("s3",endpoint_url=os.environ["R2_ENDPOINT"],
+              aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],
+              aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],region_name="auto")
+          b=os.environ["R2_BUCKET_NAME"]; prefix="pattern-breakout/production/morphology"
+          p=json.loads(s3.get_object(Bucket=b,Key=prefix+"/current.json")["Body"].read())
+          if p.get("schema_version")!="pattern-breakout-checkpoint-pointer-v2" or p.get("representation")!="ndjson+gzip":
+              raise RuntimeError("current morphology is not validated gzip v2")
+          logical=p["source_hash"].removeprefix("sha256:")
+          if not p["jsonl_key"].endswith(".jsonl.gz"): raise RuntimeError("unexpected current key")
+          stored=s3.get_object(Bucket=b,Key=p["jsonl_key"])["Body"].read()
+          if hashlib.sha256(stored).hexdigest()!=p["stored_hash"].removeprefix("sha256:"):
+              raise RuntimeError("current gzip stored checksum mismatch")
+          raw=gzip.decompress(stored)
+          if hashlib.sha256(raw).hexdigest()!=logical: raise RuntimeError("current gzip logical checksum mismatch")
+          legacy=f"{prefix}/runs/{p['as_of_date']}/{logical}.jsonl"
+          try: legacy_obj=s3.get_object(Bucket=b,Key=legacy)["Body"].read()
+          except Exception as exc:
+              code=getattr(exc,"response",{}).get("Error",{}).get("Code")
+              if code in ("404","NoSuchKey","NotFound"):
+                  print("CLEANUP_ALREADY_COMPLETE="+legacy); raise SystemExit(0)
+              raise
+          if hashlib.sha256(legacy_obj).hexdigest()!=logical: raise RuntimeError("legacy raw is not logical equivalent")
+          if legacy_obj!=raw: raise RuntimeError("legacy raw is not byte-equivalent to current gzip readback")
+          if legacy==p["jsonl_key"]: raise RuntimeError("refusing to delete current object")
+          before=len(legacy_obj)
+          s3.delete_object(Bucket=b,Key=legacy)
+          try:
+              s3.head_object(Bucket=b,Key=legacy)
+          except Exception as exc:
+              code=getattr(exc,"response",{}).get("Error",{}).get("Code")
+              if code not in ("404","NoSuchKey","NotFound"): raise
+          else: raise RuntimeError("legacy raw still exists after delete")
+          # Re-verify current remains intact after deletion.
+          final=json.loads(s3.get_object(Bucket=b,Key=prefix+"/current.json")["Body"].read())
+          if final!=p: raise RuntimeError("current pointer changed during cleanup")
+          if hashlib.sha256(s3.get_object(Bucket=b,Key=p["jsonl_key"])["Body"].read()).hexdigest()!=p["stored_hash"].removeprefix("sha256:"):
+              raise RuntimeError("current gzip changed during cleanup")
+          print("CLEANUP_RESULT="+json.dumps({"deleted_key":legacy,"freed_bytes":before,
+              "current_key":p["jsonl_key"],"logical_sha256":logical},sort_keys=True))
