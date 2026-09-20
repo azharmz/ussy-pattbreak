@@ -25,7 +25,7 @@ def publish_checkpoint(s3,bucket:str,*,stage:str,as_of_date:str,metadata:dict,js
         body=stored; content_encoding="gzip"
     else:
         key=f"{prefix}/runs/{as_of_date}/{digest}.jsonl"; body=jsonl; content_encoding=None
-    mkey=f"{prefix}/runs/{as_of_date}/{digest}.json"
+    mkey=f"{prefix}/runs/{as_of_date}/{digest}.storage-v2.json" if stage=="morphology" else f"{prefix}/runs/{as_of_date}/{digest}.json"
     canonical=(json.dumps(metadata,sort_keys=True,separators=(",",":"))+"\n").encode()
     kwargs={"Bucket":bucket,"Key":key,"Body":body,"ContentType":"application/x-ndjson"}
     if content_encoding: kwargs["ContentEncoding"]=content_encoding
