@@ -1,0 +1,40 @@
+name: Cleanup duplicate dashboard legacy raw
+on:
+  push:
+    branches: ["storage/cleanup-dashboard-legacy-raw"]
+    paths: [".github/workflows/cleanup-dashboard-legacy-raw.yml"]
+permissions: {contents: read}
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    env:
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+    steps:
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: python -m pip install boto3
+      - shell: python
+        run: |
+          import boto3,gzip,hashlib,json,os
+          s3=boto3.client("s3",endpoint_url=os.environ["R2_ENDPOINT"],aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],region_name="auto")
+          b=os.environ["R2_BUCKET_NAME"]; prefix="pattern-breakout/production/dashboard-opportunities"; pk=prefix+"/current.json"
+          p=json.loads(s3.get_object(Bucket=b,Key=pk)["Body"].read())
+          if p.get("representation")!="ndjson+gzip": raise RuntimeError("current is not gzip")
+          z=s3.get_object(Bucket=b,Key=p["jsonl_key"])["Body"].read()
+          if hashlib.sha256(z).hexdigest()!=p["stored_hash"].removeprefix("sha256:"): raise RuntimeError("stored mismatch")
+          raw=gzip.decompress(z); logical=hashlib.sha256(raw).hexdigest()
+          if logical!=p["source_hash"].removeprefix("sha256:"): raise RuntimeError("logical mismatch")
+          legacy=f"{prefix}/runs/{p['as_of_date']}/{logical}.jsonl"
+          old=s3.get_object(Bucket=b,Key=legacy)["Body"].read()
+          if old!=raw: raise RuntimeError("legacy not byte-equivalent")
+          s3.delete_object(Bucket=b,Key=legacy)
+          try: s3.head_object(Bucket=b,Key=legacy)
+          except Exception as exc:
+            if getattr(exc,"response",{}).get("Error",{}).get("Code") not in ("404","NoSuchKey","NotFound"): raise
+          else: raise RuntimeError("legacy still exists")
+          final=json.loads(s3.get_object(Bucket=b,Key=pk)["Body"].read())
+          if final!=p: raise RuntimeError("pointer changed")
+          print("CLEANUP_RESULT="+json.dumps({"deleted_key":legacy,"freed_bytes":len(old),"current_key":p["jsonl_key"],"PASS":True},sort_keys=True))
