@@ -1,5 +1,5 @@
 import {SCHEMA} from "./schema.js";
-export const VERSION="dashboard-projection-v7";
+export const VERSION="dashboard-projection-v8";
 export const POINTERS={opportunities:"pattern-breakout/production/dashboard-opportunities/current.json",candidates:"pattern-breakout/production/candidates/current.json",t1:"pattern-breakout/production/t1-execution/current.json",lifecycle:"pattern-breakout/production/lifecycle/current.json"};
 const UNIVERSE_POINTER="universe/current.json";
 const norm=x=>String(x||"").replace(/^sha256:/,"");
