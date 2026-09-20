@@ -1,0 +1,25 @@
+name: Dashboard V2 validation
+
+on:
+  pull_request:
+    paths:
+      - "web/**"
+      - "scripts/build_dashboard_opportunity_snapshot.py"
+      - "scripts/publish_durable_checkpoint.py"
+      - "src/pattern_breakout/checkpoint_store_v1.py"
+      - "package.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "22"}
+      - run: npm run web:build
+      - run: git diff --exit-code -- web/public
+      - run: npm run web:test
