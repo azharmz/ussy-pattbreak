@@ -59,7 +59,9 @@ jobs:
           assert c["upstream"]["raw_morphology_sha256"] == m["morphology"]["jsonl_sha256"]
           assert c["upstream"]["ready_source_hash"] == m["upstream_frozen_ready"]["source_hash"]
           assert c["upstream"]["as_of_date"] == m["upstream_frozen_ready"]["as_of_date"]
-          assert t["upstream"]["candidate_sha256"] == c["source_hash"]
+          candidate_hash = str(c["source_hash"]).removeprefix("sha256:")
+          t_candidate_hash = str(t["upstream_candidate_hash"]).removeprefix("sha256:")
+          assert t_candidate_hash == candidate_hash
           assert t["execution_ready"]["as_of_date"] >= c["upstream"]["as_of_date"]
           print("lineage_verified")
       - name: Publish exact existing artifacts to durable R2
