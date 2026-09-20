@@ -6,7 +6,7 @@ async function syncIfNeeded(env){
  const lifecycle=await env.R2_BUCKET.get("pattern-breakout/production/lifecycle/current.json");
  if(!lifecycle)throw Error("missing R2 object: pattern-breakout/production/lifecycle/current.json");
  const pointer=await lifecycle.json();
- if(!run || String(run.lifecycle_source_hash||"")!==String(pointer.source_hash||"")) return syncProjection(env);
+ if(!run || run.schema_version!=="dashboard-projection-v2" || String(run.lifecycle_source_hash||"")!==String(pointer.source_hash||"")) return syncProjection(env);
  return {changed:false,run_id:run.run_id,as_of_date:run.as_of_date};
 }
 async function health(db){
