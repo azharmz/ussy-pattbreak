@@ -1,0 +1,117 @@
+name: Migrate current morphology to gzip
+
+on:
+  push:
+    branches: ["storage/migrate-current-gzip"]
+    paths: [".github/workflows/migrate-current-morphology-gzip.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: morphology-storage-migration
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install boto3
+      - name: Publish validated compressed sibling and promote pointer last
+        shell: python
+        run: |
+          import boto3,gzip,hashlib,json,os,tempfile
+          from datetime import datetime,timezone
+          from pathlib import Path
+          s3=boto3.client("s3",endpoint_url=os.environ["R2_ENDPOINT"],
+              aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],
+              aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],region_name="auto")
+          b=os.environ["R2_BUCKET_NAME"]; prefix="pattern-breakout/production/morphology"
+          pkey=prefix+"/current.json"
+          original_pointer_raw=s3.get_object(Bucket=b,Key=pkey)["Body"].read()
+          p=json.loads(original_pointer_raw)
+          if p.get("representation")=="ndjson+gzip":
+              print("MIGRATION_ALREADY_COMPLETE="+json.dumps(p,sort_keys=True)); raise SystemExit(0)
+          if p.get("schema_version")!="pattern-breakout-checkpoint-pointer-v1":
+              raise RuntimeError("unexpected source pointer schema")
+          logical=str(p["source_hash"]).removeprefix("sha256:")
+          meta=json.loads(s3.get_object(Bucket=b,Key=p["metadata_key"])["Body"].read())
+          if meta.get("source_hash") not in {logical,"sha256:"+logical}: raise RuntimeError("legacy metadata hash mismatch")
+          with tempfile.TemporaryDirectory() as td:
+              raw=Path(td)/"raw.jsonl"; gz=Path(td)/"raw.jsonl.gz"
+              s3.download_file(b,p["jsonl_key"],str(raw))
+              h=hashlib.sha256(); rows=0
+              with raw.open("rb") as f:
+                  while True:
+                      chunk=f.read(8*1024*1024)
+                      if not chunk: break
+                      h.update(chunk); rows+=chunk.count(b"\n")
+              if h.hexdigest()!=logical: raise RuntimeError("legacy raw logical hash mismatch")
+              expected_rows=meta.get("morphology",{}).get("record_count")
+              if expected_rows is not None and rows!=expected_rows: raise RuntimeError("legacy record count mismatch")
+              with raw.open("rb") as src,gz.open("wb") as dst:
+                  with gzip.GzipFile(filename="",mode="wb",fileobj=dst,compresslevel=6,mtime=0) as z:
+                      while True:
+                          chunk=src.read(8*1024*1024)
+                          if not chunk: break
+                          z.write(chunk)
+              stored=gz.read_bytes(); stored_sha=hashlib.sha256(stored).hexdigest()
+              gkey=f"{prefix}/runs/{p['as_of_date']}/{logical}.jsonl.gz"
+              mkey=f"{prefix}/runs/{p['as_of_date']}/{logical}.storage-v2.json"
+              storage={"representation":"ndjson+gzip","compression":{"codec":"gzip","level":6,"mtime":0},
+                  "logical_sha256":logical,"logical_bytes":raw.stat().st_size,
+                  "stored_sha256":stored_sha,"stored_bytes":len(stored),
+                  "compression_ratio":len(stored)/raw.stat().st_size,
+                  "semantic_verification":"sha256-byte-exact-after-decompress"}
+              meta2=dict(meta); meta2["storage"]=storage
+              # Existing sibling is accepted only if byte-identical; never overwrite a different immutable object.
+              try:
+                  existing=s3.get_object(Bucket=b,Key=gkey)["Body"].read()
+              except Exception as exc:
+                  code=getattr(exc,"response",{}).get("Error",{}).get("Code")
+                  if code not in ("404","NoSuchKey","NotFound"): raise
+                  s3.put_object(Bucket=b,Key=gkey,Body=stored,ContentType="application/x-ndjson",ContentEncoding="gzip")
+              else:
+                  if hashlib.sha256(existing).hexdigest()!=stored_sha: raise RuntimeError("existing gzip sibling differs")
+              canonical=(json.dumps(meta2,sort_keys=True,separators=(",",":"))+"\n").encode()
+              try:
+                  oldmeta=s3.get_object(Bucket=b,Key=mkey)["Body"].read()
+              except Exception as exc:
+                  code=getattr(exc,"response",{}).get("Error",{}).get("Code")
+                  if code not in ("404","NoSuchKey","NotFound"): raise
+                  s3.put_object(Bucket=b,Key=mkey,Body=canonical,ContentType="application/json")
+              else:
+                  if oldmeta!=canonical: raise RuntimeError("existing storage-v2 metadata differs")
+              # Independent R2 readback before pointer promotion.
+              rb=s3.get_object(Bucket=b,Key=gkey)["Body"].read()
+              if hashlib.sha256(rb).hexdigest()!=stored_sha: raise RuntimeError("stored gzip checksum mismatch")
+              logical_rb=gzip.decompress(rb)
+              if hashlib.sha256(logical_rb).hexdigest()!=logical or len(logical_rb)!=raw.stat().st_size:
+                  raise RuntimeError("gzip logical readback mismatch")
+              if logical_rb.count(b"\n")!=rows: raise RuntimeError("gzip record count mismatch")
+              # Fail closed if another producer moved current while migration was running.
+              if s3.get_object(Bucket=b,Key=pkey)["Body"].read()!=original_pointer_raw:
+                  raise RuntimeError("current morphology pointer changed during migration")
+              p2={"schema_version":"pattern-breakout-checkpoint-pointer-v2","stage":"morphology",
+                  "as_of_date":p["as_of_date"],"source_hash":"sha256:"+logical,
+                  "jsonl_key":gkey,"metadata_key":mkey,"representation":"ndjson+gzip",
+                  "stored_hash":"sha256:"+stored_sha,"stored_bytes":len(stored),
+                  "logical_bytes":raw.stat().st_size,"updated_at":datetime.now(timezone.utc).isoformat()}
+              s3.put_object(Bucket=b,Key=pkey,Body=(json.dumps(p2,sort_keys=True,separators=(",",":"))+"\n").encode(),ContentType="application/json")
+              # Final pointer + object verification.
+              final=json.loads(s3.get_object(Bucket=b,Key=pkey)["Body"].read())
+              if final!=p2: raise RuntimeError("final pointer readback mismatch")
+              print("MIGRATION_RESULT="+json.dumps({"pointer":p2,"record_count":rows,
+                  "legacy_raw_key":p["jsonl_key"],"legacy_raw_retained":True,
+                  "saved_bytes":raw.stat().st_size-len(stored),
+                  "saved_pct":(1-len(stored)/raw.stat().st_size)*100},sort_keys=True))
