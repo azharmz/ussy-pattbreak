@@ -27,6 +27,6 @@ jobs:
           if logical!=p["source_hash"].removeprefix("sha256:") or logical!=m["storage"]["logical_sha256"] or len(raw)!=p["logical_bytes"]: raise RuntimeError("logical identity failure")
           rows=[json.loads(x) for x in raw.splitlines()]
           if len(rows)!=m["record_count"]: raise RuntimeError("record count failure")
-          required={"assessment_id","security_id","pattern","pivot_level","as_of_date","distance_to_pivot_pct"}
+          required={"assessment_id","security_id","pattern_type","pivot_level","as_of_date","distance_to_pivot_pct"}
           if rows and not required.issubset(rows[0]): raise RuntimeError("dashboard row contract failure")
           print("VERIFY_RESULT="+json.dumps({"records":len(rows),"stored_bytes":len(z),"logical_bytes":len(raw),"logical_sha256":logical,"PASS":True},sort_keys=True))
