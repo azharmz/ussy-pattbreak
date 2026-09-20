@@ -1,3 +1,4 @@
+import {syncProjection} from "./d1/projector.js";
 const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store"}});
 
 async function health(db){
@@ -31,6 +32,7 @@ async function detail(db,id){
 export default {async fetch(request,env){
  const url=new URL(request.url); const p=url.pathname;
  try{
+  if(p==="/api/admin/sync" && request.method==="POST"){if(request.headers.get("authorization")!==`Bearer ${env.SYNC_TOKEN}`)return json({error:"unauthorized"},401);return json(await syncProjection(env));}
   if(p==="/api/health")return json(await health(env.DB));
   if(p==="/api/opportunities")return json(await opportunities(env.DB,url));
   if(p.startsWith("/api/opportunities/")){const x=await detail(env.DB,decodeURIComponent(p.split("/").pop()));return x?json(x):json({error:"not_found"},404)}
