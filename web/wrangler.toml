@@ -5,7 +5,7 @@ pages_build_output_dir = "public"
 [[d1_databases]]
 binding = "DB"
 database_name = "ussy-pattern-breakout-dashboard"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "0e0fe9f1-c505-4f3c-8b6c-fa229942b813"
 
 [[r2_buckets]]
 binding = "R2_BUCKET"
