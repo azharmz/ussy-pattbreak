@@ -6,3 +6,7 @@ pages_build_output_dir = "public"
 binding = "DB"
 database_name = "ussy-pattern-breakout-dashboard"
 database_id = "REPLACE_WITH_D1_DATABASE_ID"
+
+[[r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "ussy-data"
