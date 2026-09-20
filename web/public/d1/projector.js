@@ -53,7 +53,7 @@ export async function buildProjection(env){
 
 export async function syncProjection(env){
  const p=await buildProjection(env), asof=p.stages.l.pointer.as_of_date;
- const runId=id("projection",asof,p.stages.m.hash,p.stages.c.hash,p.stages.t.hash,p.stages.l.hash);
+ const runId=id("projection-v2",asof,p.stages.m.hash,p.stages.c.hash,p.stages.t.hash,p.stages.l.hash);
  await env.DB.prepare("INSERT OR REPLACE INTO projection_runs(run_id,as_of_date,ready_source_hash,morphology_source_hash,candidate_source_hash,t1_source_hash,lifecycle_source_hash,engine_version,schema_version,producer_commit,created_at,projected_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,datetime('now'))")
   .bind(runId,asof,p.stages.m.meta.upstream_frozen_ready?.source_hash||null,p.stages.m.hash,p.stages.c.hash,p.stages.t.hash,p.stages.l.hash,p.stages.m.meta.engine_version||"33-core-p8-frozen-v1","dashboard-projection-v2",null,p.stages.l.meta.created_at||new Date().toISOString()).run();
  const ob=env.DB.batch.bind(env.DB);
