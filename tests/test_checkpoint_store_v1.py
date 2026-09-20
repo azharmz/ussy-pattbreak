@@ -69,7 +69,8 @@ def test_same_day_same_logical_snapshot_does_not_multiply_payload_keys():
  assert len(payload)==1
 
 def test_retention_refuses_policy_that_could_drop_current():
- s=S3()\n with pytest.raises(ValueError): enforce_stage_retention(s,"b","morphology",{"as_of_date":"2026-09-20"},keep_dates=1)
+ s=S3()
+ with pytest.raises(ValueError): enforce_stage_retention(s,"b","morphology",{"as_of_date":"2026-09-20"},keep_dates=1)
 
 def test_dashboard_opportunities_gzip_and_retention():
  s=S3()
