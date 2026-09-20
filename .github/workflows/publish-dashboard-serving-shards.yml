@@ -2,6 +2,9 @@ name: Publish dashboard serving shards
 
 on:
   workflow_dispatch:
+  push:
+    branches: ["dispatch/dashboard-serving-shards-20260920"]
+    paths: [".dashboard-serving-dispatch"]
 
 permissions:
   contents: read
