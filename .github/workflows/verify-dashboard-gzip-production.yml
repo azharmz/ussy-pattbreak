@@ -1,0 +1,32 @@
+name: Verify dashboard gzip production
+on:
+  push:
+    branches: ["storage/verify-dashboard-gzip-production"]
+    paths: [".github/workflows/verify-dashboard-gzip-production.yml"]
+permissions: {contents: read}
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+    steps:
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: python -m pip install boto3
+      - shell: python
+        run: |
+          import boto3,gzip,hashlib,json,os
+          s3=boto3.client("s3",endpoint_url=os.environ["R2_ENDPOINT"],aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],region_name="auto")
+          b=os.environ["R2_BUCKET_NAME"]; prefix="pattern-breakout/production/dashboard-opportunities"
+          p=json.loads(s3.get_object(Bucket=b,Key=prefix+"/current.json")["Body"].read()); m=json.loads(s3.get_object(Bucket=b,Key=p["metadata_key"])["Body"].read()); z=s3.get_object(Bucket=b,Key=p["jsonl_key"])["Body"].read()
+          if p["representation"]!="ndjson+gzip" or hashlib.sha256(z).hexdigest()!=p["stored_hash"].removeprefix("sha256:"): raise RuntimeError("stored identity failure")
+          raw=gzip.decompress(z); logical=hashlib.sha256(raw).hexdigest()
+          if logical!=p["source_hash"].removeprefix("sha256:") or logical!=m["storage"]["logical_sha256"] or len(raw)!=p["logical_bytes"]: raise RuntimeError("logical identity failure")
+          rows=[json.loads(x) for x in raw.splitlines()]
+          if len(rows)!=m["record_count"]: raise RuntimeError("record count failure")
+          required={"assessment_id","security_id","pattern","pivot_level","as_of_date","distance_to_pivot_pct"}
+          if rows and not required.issubset(rows[0]): raise RuntimeError("dashboard row contract failure")
+          print("VERIFY_RESULT="+json.dumps({"records":len(rows),"stored_bytes":len(z),"logical_bytes":len(raw),"logical_sha256":logical,"PASS":True},sort_keys=True))
