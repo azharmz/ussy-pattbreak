@@ -30,9 +30,15 @@ export async function buildProjection(env){
  const t1=new Map(t.rows.map(x=>[x.candidate_id,x]));
  const opportunity=[];
  for(const x of m.rows){
-  const cc=[...candidate.values()].find(y=>y.security_id==x.security_id && y.signal_date==x.asof_date && y.pivot_level==x.pivot_level);
-  const tt=cc?t1.get(cc.candidate_id):null;
-  opportunity.push({...x,breakout:cc||null,t1:tt||null});
+  // Core contract: PatternBreakoutCandidate.candidate_id is exactly the frozen
+  // morphology assessment_id. Never fuzzy-match by ticker/date/pivot.
+  const cc=candidate.get(x.assessment_id)||null;
+  if(cc && (String(cc.security_id)!==String(x.security_id) || cc.signal_date!==x.asof_date))
+    throw Error("candidate/morphology identity mismatch: "+x.assessment_id);
+  const tt=cc?t1.get(cc.candidate_id)||null:null;
+  if(tt && String(tt.security_id)!==String(x.security_id))
+    throw Error("T1/candidate identity mismatch: "+x.assessment_id);
+  opportunity.push({...x,breakout:cc,t1:tt});
  }
  return {stages:{m,c,t,l},opportunities:opportunity,positions:l.rows};
 }
