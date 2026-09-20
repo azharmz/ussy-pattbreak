@@ -110,7 +110,8 @@ jobs:
 
               rb=raw.stat().st_size; gb=gz.stat().st_size
               report={
-                "inventory":objs,\n                "reconstructability":{"ready_key":ready_key,"ready_bytes":ready_head["ContentLength"],"expected_ready_sha256":ready_expected,"actual_ready_sha256":rsha.hexdigest(),"exact_ready_available":True,"frozen_oneil_sha":meta["morphology"]["frozen_repo_sha"],"engine_version":meta["morphology"]["engine_version"],"output_schema_version":meta["morphology"]["output_schema_version"]},
+                "inventory":objs,
+                "reconstructability":{"ready_key":ready_key,"ready_bytes":ready_head["ContentLength"],"expected_ready_sha256":ready_expected,"actual_ready_sha256":rsha.hexdigest(),"exact_ready_available":True,"frozen_oneil_sha":meta["morphology"]["frozen_repo_sha"],"engine_version":meta["morphology"]["engine_version"],"output_schema_version":meta["morphology"]["output_schema_version"]},
                 "current_pointer":ptr,
                 "current_head":{"bytes":head["ContentLength"],"content_type":head.get("ContentType"),
                   "content_encoding":head.get("ContentEncoding")},
