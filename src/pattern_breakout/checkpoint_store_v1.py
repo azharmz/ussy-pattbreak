@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 ALLOWED_STAGES={"morphology","candidates","t1-execution","dashboard-opportunities"}
 MORPHOLOGY_REPRESENTATION="ndjson+gzip"
 MORPHOLOGY_COMPRESSION_LEVEL=6
+MORPHOLOGY_RETENTION_DATES=2
 
 def _prefix(stage:str)->str:
     if stage not in ALLOWED_STAGES: raise ValueError(f"unsupported durable stage: {stage}")
@@ -13,6 +14,40 @@ def _prefix(stage:str)->str:
 
 def _sha(b:bytes)->str: return hashlib.sha256(b).hexdigest()
 def _gzip_deterministic(raw:bytes)->bytes: return gzip.compress(raw,compresslevel=MORPHOLOGY_COMPRESSION_LEVEL,mtime=0)
+
+def _delete_prefix(s3,bucket:str,prefix:str)->int:
+    deleted=0; token=None
+    while True:
+        kwargs={"Bucket":bucket,"Prefix":prefix}
+        if token: kwargs["ContinuationToken"]=token
+        page=s3.list_objects_v2(**kwargs)
+        objects=[{"Key":x["Key"]} for x in page.get("Contents",[])]
+        if objects:
+            s3.delete_objects(Bucket=bucket,Delete={"Objects":objects,"Quiet":True}); deleted+=len(objects)
+        if not page.get("IsTruncated"): break
+        token=page["NextContinuationToken"]
+    return deleted
+
+def enforce_morphology_retention(s3,bucket:str,current_pointer:dict,keep_dates:int=MORPHOLOGY_RETENTION_DATES)->dict:
+    """Keep current + previous morphology dates; current pointer is never deletable."""
+    if keep_dates<2: raise ValueError("morphology retention must preserve current plus rollback date")
+    prefix=_prefix("morphology"); current_date=current_pointer["as_of_date"]
+    dates=set(); token=None
+    while True:
+        kwargs={"Bucket":bucket,"Prefix":prefix+"/runs/"}
+        if token: kwargs["ContinuationToken"]=token
+        page=s3.list_objects_v2(**kwargs)
+        for x in page.get("Contents",[]):
+            rest=x["Key"][len(prefix+"/runs/"):]
+            if "/" in rest: dates.add(rest.split("/",1)[0])
+        if not page.get("IsTruncated"): break
+        token=page["NextContinuationToken"]
+    keep=set(sorted(dates,reverse=True)[:keep_dates])
+    if current_date not in keep: raise ValueError("current morphology date would fall outside retention window")
+    removed={}
+    for d in sorted(dates-keep):
+        removed[d]=_delete_prefix(s3,bucket,f"{prefix}/runs/{d}/")
+    return {"policy":"2-dates-1-logical-snapshot-per-date","keep_dates":sorted(keep,reverse=True),"removed":removed}
 
 def publish_checkpoint(s3,bucket:str,*,stage:str,as_of_date:str,metadata:dict,jsonl:bytes)->dict:
     digest=_sha(jsonl); expected=metadata.get("source_hash")
@@ -34,6 +69,9 @@ def publish_checkpoint(s3,bucket:str,*,stage:str,as_of_date:str,metadata:dict,js
     pointer={"schema_version":"pattern-breakout-checkpoint-pointer-v2" if stage=="morphology" else "pattern-breakout-checkpoint-pointer-v1","stage":stage,"as_of_date":as_of_date,"source_hash":f"sha256:{digest}","jsonl_key":key,"metadata_key":mkey,"updated_at":datetime.now(timezone.utc).isoformat()}
     if stage=="morphology": pointer.update({"representation":MORPHOLOGY_REPRESENTATION,"stored_hash":f"sha256:{metadata['storage']['stored_sha256']}","stored_bytes":metadata["storage"]["stored_bytes"],"logical_bytes":metadata["storage"]["logical_bytes"]})
     s3.put_object(Bucket=bucket,Key=f"{prefix}/current.json",Body=(json.dumps(pointer,sort_keys=True,separators=(",",":"))+"\n").encode(),ContentType="application/json")
+    if stage=="morphology":
+        # Cleanup only after the new immutable payload, manifest and CURRENT pointer are durable.
+        pointer["retention"]=enforce_morphology_retention(s3,bucket,pointer)
     return pointer
 
 def load_current_checkpoint(s3,bucket:str,*,stage:str):
