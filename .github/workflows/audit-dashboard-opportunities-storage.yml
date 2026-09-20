@@ -1,0 +1,59 @@
+name: Audit dashboard opportunities storage
+
+on:
+  push:
+    branches: ["audit/dashboard-opportunities-storage"]
+    paths: [".github/workflows/audit-dashboard-opportunities-storage.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+    steps:
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: python -m pip install boto3
+      - name: Inventory and lossless gzip benchmark
+        shell: python
+        run: |
+          import boto3,gzip,hashlib,json,os,time
+          s3=boto3.client("s3",endpoint_url=os.environ["R2_ENDPOINT"],
+              aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],
+              aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],region_name="auto")
+          b=os.environ["R2_BUCKET_NAME"]; prefix="pattern-breakout/production/dashboard-opportunities"
+          objs=[]; token=None
+          while True:
+              kw={"Bucket":b,"Prefix":prefix+"/"}
+              if token: kw["ContinuationToken"]=token
+              page=s3.list_objects_v2(**kw)
+              for x in page.get("Contents",[]): objs.append({"key":x["Key"],"bytes":x["Size"]})
+              if not page.get("IsTruncated"): break
+              token=page["NextContinuationToken"]
+          p=json.loads(s3.get_object(Bucket=b,Key=prefix+"/current.json")["Body"].read())
+          raw=s3.get_object(Bucket=b,Key=p["jsonl_key"])["Body"].read()
+          logical=hashlib.sha256(raw).hexdigest()
+          if p["source_hash"].removeprefix("sha256:")!=logical: raise RuntimeError("current logical hash mismatch")
+          meta=json.loads(s3.get_object(Bucket=b,Key=p["metadata_key"])["Body"].read())
+          if meta["source_hash"].removeprefix("sha256:")!=logical: raise RuntimeError("metadata logical hash mismatch")
+          rows=raw.count(b"\n")
+          if meta.get("record_count") is not None and rows!=meta["record_count"]: raise RuntimeError("record count mismatch")
+          t=time.perf_counter(); gz=gzip.compress(raw,compresslevel=6,mtime=0); sec=time.perf_counter()-t
+          rb=gzip.decompress(gz)
+          if rb!=raw or hashlib.sha256(rb).hexdigest()!=logical: raise RuntimeError("gzip readback mismatch")
+          dates=sorted({x["key"][len(prefix+"/runs/"):].split("/",1)[0] for x in objs if x["key"].startswith(prefix+"/runs/") and "/" in x["key"][len(prefix+"/runs/"):]})
+          bydate={d:sum(x["bytes"] for x in objs if f"{prefix}/runs/{d}/" in x["key"]) for d in dates}
+          report={"pointer":p,"metadata":meta,"object_count":len(objs),"total_bytes":sum(x["bytes"] for x in objs),
+            "dates":dates,"bytes_by_date":bydate,"inventory":objs,
+            "benchmark":{"raw_bytes":len(raw),"gzip_bytes":len(gz),"ratio":len(gz)/len(raw),"saved_bytes":len(raw)-len(gz),
+              "saved_pct":(1-len(gz)/len(raw))*100,"compress_seconds":sec,"record_count":rows,
+              "logical_sha256":logical,"stored_sha256":hashlib.sha256(gz).hexdigest(),"byte_exact_after_decompress":True}}
+          print("AUDIT_REPORT="+json.dumps(report,sort_keys=True))
