@@ -56,9 +56,10 @@ jobs:
           m=load("backfill/morphology/raw-oneil-morphology.json")
           c=load("backfill/candidates/breakout-candidate.json")
           t=load("backfill/t1/t1-execution.json")
-          assert c["upstream"]["morphology_run_id"] == int("${{ env.MORPHOLOGY_RUN_ID }}")
-          assert t["upstream"]["candidate_run_id"] == int("${{ env.CANDIDATE_RUN_ID }}")
+          assert c["upstream"]["raw_morphology_sha256"] == m["morphology"]["jsonl_sha256"]
+          assert c["upstream"]["ready_source_hash"] == m["upstream_frozen_ready"]["source_hash"]
           assert c["upstream"]["as_of_date"] == m["upstream_frozen_ready"]["as_of_date"]
+          assert t["upstream"]["candidate_sha256"] == c["source_hash"]
           assert t["execution_ready"]["as_of_date"] >= c["upstream"]["as_of_date"]
           print("lineage_verified")
       - name: Publish exact existing artifacts to durable R2
