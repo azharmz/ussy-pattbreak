@@ -34,7 +34,9 @@ jobs:
         run: python -m pip install ./_frozen/ussy-oneil-patterns
       - name: Freeze READY and run frozen morphology
         run: python scripts/build_raw_morphology.py
-      - name: Upload durable morphology checkpoint
+      - name: Publish morphology checkpoint to durable R2
+        run: python scripts/publish_durable_checkpoint.py --stage morphology
+      - name: Upload 30-day morphology debug artifact
         uses: actions/upload-artifact@v4
         with:
           name: raw-oneil-morphology-${{ github.run_id }}
