@@ -7,6 +7,7 @@ on:
       - ops/dashboard-bootstrap-dispatch
     paths:
       - .github/workflows/backfill-durable-checkpoints.yml
+      - .github/dashboard-bootstrap-dispatch
 
 permissions:
   contents: read
