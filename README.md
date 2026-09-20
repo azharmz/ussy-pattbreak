@@ -35,3 +35,8 @@ Canonical morphology dependency:
 Weinstein Stage Analysis and Minervini/VCP are future independently versioned evidence extensions, not Core v1 gates.
 
 See `docs/architecture/core-v1.md`, `docs/architecture/core-v1-e2e-contract.md`, and `docs/audits/existing-entry-exit-assets-v1.md`.
+
+## Local dashboard
+
+Run `npm run web:build`, then `npm run web:dev` and open `http://127.0.0.1:8788`.
+The local server uses production-compatible candidate, T+1, and lifecycle fixtures and does not access Cloudflare or production R2/D1.

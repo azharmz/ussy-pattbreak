@@ -1,0 +1,1 @@
+{"type":"module","scripts":{"web:build":"node web/scripts/build.mjs","web:dev":"node --experimental-sqlite web/local/server.mjs","web:test":"node --experimental-sqlite --test web/tests/*.test.mjs"}}
