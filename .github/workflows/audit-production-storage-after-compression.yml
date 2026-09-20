@@ -1,0 +1,38 @@
+name: Audit production storage after compression
+on:
+  push:
+    branches: ["audit/production-storage-after-compression"]
+    paths: [".github/workflows/audit-production-storage-after-compression.yml"]
+permissions: {contents: read}
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+    steps:
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: python -m pip install boto3
+      - shell: python
+        run: |
+          import boto3,json,os,collections
+          s3=boto3.client("s3",endpoint_url=os.environ["R2_ENDPOINT"],aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],region_name="auto")
+          b=os.environ["R2_BUCKET_NAME"]; root="pattern-breakout/production/"
+          objs=[]; token=None
+          while True:
+            kw={"Bucket":b,"Prefix":root}
+            if token: kw["ContinuationToken"]=token
+            p=s3.list_objects_v2(**kw)
+            objs += [{"key":x["Key"],"bytes":x["Size"]} for x in p.get("Contents",[])]
+            if not p.get("IsTruncated"): break
+            token=p["NextContinuationToken"]
+          stages=collections.defaultdict(lambda:{"bytes":0,"objects":0,"largest":[]})
+          for x in objs:
+            rest=x["key"][len(root):]; stage=rest.split("/",1)[0] if "/" in rest else rest
+            d=stages[stage]; d["bytes"]+=x["bytes"]; d["objects"]+=1; d["largest"].append(x)
+          for d in stages.values(): d["largest"]=sorted(d["largest"],key=lambda x:x["bytes"],reverse=True)[:5]
+          print("AUDIT_RESULT="+json.dumps({"total_bytes":sum(x["bytes"] for x in objs),"object_count":len(objs),"stages":dict(sorted(stages.items(),key=lambda kv:kv[1]["bytes"],reverse=True))},sort_keys=True))
