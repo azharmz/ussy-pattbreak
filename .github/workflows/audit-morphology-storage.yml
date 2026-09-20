@@ -50,6 +50,20 @@ jobs:
               token=page["NextContinuationToken"]
 
           ptr=json.loads(s3.get_object(Bucket=bucket,Key=prefix+"current.json")["Body"].read())
+          meta=json.loads(s3.get_object(Bucket=bucket,Key=ptr["metadata_key"])["Body"].read())
+          upstream=meta["upstream_frozen_ready"]
+          ready_date=upstream["as_of_date"]
+          ready_key=f"production/ready/runs/{ready_date}.parquet"
+          ready_head=s3.head_object(Bucket=bucket,Key=ready_key)
+          rsha=hashlib.sha256()
+          ready_obj=s3.get_object(Bucket=bucket,Key=ready_key)["Body"]
+          while True:
+              chunk=ready_obj.read(8*1024*1024)
+              if not chunk: break
+              rsha.update(chunk)
+          ready_expected=str(upstream["source_hash"]).removeprefix("sha256:")
+          if rsha.hexdigest()!=ready_expected:
+              raise RuntimeError("upstream READY reconstruction source mismatch")
           key=ptr["jsonl_key"]
           head=s3.head_object(Bucket=bucket,Key=key)
           expected=str(ptr["source_hash"]).removeprefix("sha256:")
@@ -96,7 +110,7 @@ jobs:
 
               rb=raw.stat().st_size; gb=gz.stat().st_size
               report={
-                "inventory":objs,
+                "inventory":objs,\n                "reconstructability":{"ready_key":ready_key,"ready_bytes":ready_head["ContentLength"],"expected_ready_sha256":ready_expected,"actual_ready_sha256":rsha.hexdigest(),"exact_ready_available":True,"frozen_oneil_sha":meta["morphology"]["frozen_repo_sha"],"engine_version":meta["morphology"]["engine_version"],"output_schema_version":meta["morphology"]["output_schema_version"]},
                 "current_pointer":ptr,
                 "current_head":{"bytes":head["ContentLength"],"content_type":head.get("ContentType"),
                   "content_encoding":head.get("ContentEncoding")},
