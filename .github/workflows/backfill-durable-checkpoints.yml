@@ -2,6 +2,11 @@ name: Backfill durable dashboard checkpoints
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - ops/dashboard-bootstrap-dispatch
+    paths:
+      - .github/workflows/backfill-durable-checkpoints.yml
 
 permissions:
   contents: read
