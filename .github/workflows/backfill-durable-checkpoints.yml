@@ -1,0 +1,68 @@
+name: Backfill durable dashboard checkpoints
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+      MORPHOLOGY_RUN_ID: "35428239292"
+      CANDIDATE_RUN_ID: "35429258933"
+      T1_RUN_ID: "35433809906"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install publisher runtime
+        run: python -m pip install -e . boto3
+      - name: Download frozen morphology artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: raw-oneil-morphology-${{ env.MORPHOLOGY_RUN_ID }}
+          path: backfill/morphology
+          run-id: ${{ env.MORPHOLOGY_RUN_ID }}
+          github-token: ${{ github.token }}
+      - name: Download frozen candidate artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: breakout-candidate-${{ env.CANDIDATE_RUN_ID }}
+          path: backfill/candidates
+          run-id: ${{ env.CANDIDATE_RUN_ID }}
+          github-token: ${{ github.token }}
+      - name: Download frozen T1 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: t1-execution-${{ env.T1_RUN_ID }}
+          path: backfill/t1
+          run-id: ${{ env.T1_RUN_ID }}
+          github-token: ${{ github.token }}
+      - name: Verify frozen lineage before R2 mutation
+        shell: python
+        run: |
+          import json
+          from pathlib import Path
+          def load(path): return json.loads(Path(path).read_text())
+          m=load("backfill/morphology/raw-oneil-morphology.json")
+          c=load("backfill/candidates/breakout-candidate.json")
+          t=load("backfill/t1/t1-execution.json")
+          assert c["upstream"]["morphology_run_id"] == int("${{ env.MORPHOLOGY_RUN_ID }}")
+          assert t["upstream"]["candidate_run_id"] == int("${{ env.CANDIDATE_RUN_ID }}")
+          assert c["upstream"]["as_of_date"] == m["upstream_frozen_ready"]["as_of_date"]
+          assert t["execution_ready"]["as_of_date"] >= c["upstream"]["as_of_date"]
+          print("lineage_verified")
+      - name: Publish exact existing artifacts to durable R2
+        run: |
+          python scripts/publish_durable_checkpoint.py --stage morphology --dir backfill/morphology
+          python scripts/publish_durable_checkpoint.py --stage candidates --dir backfill/candidates
+          python scripts/publish_durable_checkpoint.py --stage t1-execution --dir backfill/t1
