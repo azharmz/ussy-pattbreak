@@ -9,6 +9,7 @@ FILES={
  "morphology":("raw-oneil-morphology.json","raw-oneil-morphology.jsonl"),
  "candidates":("breakout-candidate.json","breakout-candidate.jsonl"),
  "t1-execution":("t1-execution.json","t1-execution.jsonl"),
+ "dashboard-opportunities":("dashboard-opportunities.json","dashboard-opportunities.jsonl"),
 }
 
 def client():
@@ -23,8 +24,10 @@ def main():
   asof=meta["upstream_frozen_ready"]["as_of_date"]
  elif a.stage=="candidates":
   asof=meta["upstream"]["as_of_date"]
- else:
+ elif a.stage=="t1-execution":
   asof=meta["execution_ready"]["as_of_date"]
+ else:
+  asof=meta["as_of_date"]
  p=publish_checkpoint(client(),os.environ["R2_BUCKET_NAME"],stage=a.stage,as_of_date=asof,metadata=meta,jsonl=raw)
  print(json.dumps(p,sort_keys=True))
 if __name__=="__main__": main()

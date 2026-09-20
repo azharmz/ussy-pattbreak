@@ -1,0 +1,58 @@
+name: Build dashboard opportunity snapshot
+
+on:
+  workflow_dispatch:
+    inputs:
+      morphology_run_id:
+        description: Successful RAW_ONEIL_MORPHOLOGY workflow run ID
+        required: true
+        default: ""
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+      MORPHOLOGY_RUN_ID: ${{ inputs.morphology_run_id }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: python -m pip install -e . boto3 pyarrow
+      - name: Download exact morphology checkpoint
+        uses: actions/download-artifact@v4
+        with:
+          name: raw-oneil-morphology-${{ env.MORPHOLOGY_RUN_ID }}
+          path: upstream
+          run-id: ${{ env.MORPHOLOGY_RUN_ID }}
+          github-token: ${{ github.token }}
+      - name: Fetch exact READY parquet
+        run: |
+          python - <<'PY'
+          import json, os, boto3
+          from pathlib import Path
+          f=json.loads(Path("upstream/frozen-ready.json").read_text())
+          s=boto3.client("s3",endpoint_url=os.environ["R2_ENDPOINT"],aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],region_name="auto")
+          body=s.get_object(Bucket=os.environ["R2_BUCKET_NAME"],Key=f["ready"]["parquet_key"])["Body"].read()
+          Path("upstream/ready.parquet").write_bytes(body)
+          PY
+      - name: Build compact serving snapshot
+        run: python scripts/build_dashboard_opportunity_snapshot.py --ready-parquet upstream/ready.parquet
+      - name: Publish compact serving snapshot
+        run: python scripts/publish_durable_checkpoint.py --stage dashboard-opportunities
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-opportunities-${{ github.run_id }}
+          path: |
+            checkpoints/dashboard-opportunities.json
+            checkpoints/dashboard-opportunities.jsonl
+          if-no-files-found: error
+          retention-days: 30

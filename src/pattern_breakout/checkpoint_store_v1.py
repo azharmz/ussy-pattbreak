@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib, json
 from datetime import datetime, timezone
 
-ALLOWED_STAGES={"morphology","candidates","t1-execution"}
+ALLOWED_STAGES={"morphology","candidates","t1-execution","dashboard-opportunities"}
 
 def _prefix(stage:str)->str:
     if stage not in ALLOWED_STAGES: raise ValueError(f"unsupported durable stage: {stage}")
