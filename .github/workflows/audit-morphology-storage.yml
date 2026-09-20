@@ -1,0 +1,110 @@
+name: Audit morphology storage gzip benchmark
+
+on:
+  push:
+    branches: ["audit/storage-gzip-benchmark"]
+    paths: [".github/workflows/audit-morphology-storage.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install read-only audit runtime
+        run: python -m pip install boto3
+      - name: Inventory current morphology and benchmark gzip-6
+        shell: python
+        run: |
+          import boto3, gzip, hashlib, json, os, tempfile, time
+          from pathlib import Path
+
+          s3=boto3.client("s3",endpoint_url=os.environ["R2_ENDPOINT"],
+              aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],
+              aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"])
+          bucket=os.environ["R2_BUCKET_NAME"]
+          prefix="pattern-breakout/production/morphology/"
+          objs=[]
+          token=None
+          while True:
+              kw={"Bucket":bucket,"Prefix":prefix}
+              if token: kw["ContinuationToken"]=token
+              page=s3.list_objects_v2(**kw)
+              for o in page.get("Contents",[]):
+                  h=s3.head_object(Bucket=bucket,Key=o["Key"])
+                  objs.append({"key":o["Key"],"bytes":o["Size"],
+                      "content_type":h.get("ContentType"),"content_encoding":h.get("ContentEncoding"),
+                      "etag":str(o.get("ETag","")).strip('"')})
+              if not page.get("IsTruncated"): break
+              token=page["NextContinuationToken"]
+
+          ptr=json.loads(s3.get_object(Bucket=bucket,Key=prefix+"current.json")["Body"].read())
+          key=ptr["jsonl_key"]
+          head=s3.head_object(Bucket=bucket,Key=key)
+          expected=str(ptr["source_hash"]).removeprefix("sha256:")
+          with tempfile.TemporaryDirectory() as td:
+              raw=Path(td)/"morphology.jsonl"
+              gz=Path(td)/"morphology.jsonl.gz"
+              t=time.perf_counter()
+              s3.download_file(bucket,key,str(raw))
+              download_s=time.perf_counter()-t
+
+              sha=hashlib.sha256(); rows=0; parsed=0; nulls=0
+              with raw.open("rb") as f:
+                  for line in f:
+                      sha.update(line); rows+=1
+                      obj=json.loads(line); parsed+=1
+                      def count_null(v):
+                          if v is None: return 1
+                          if isinstance(v,dict): return sum(count_null(x) for x in v.values())
+                          if isinstance(v,list): return sum(count_null(x) for x in v)
+                          return 0
+                      nulls+=count_null(obj)
+              raw_sha=sha.hexdigest()
+              if raw_sha!=expected: raise RuntimeError("current source hash mismatch")
+
+              t=time.perf_counter()
+              with raw.open("rb") as src, gz.open("wb") as dst:
+                  with gzip.GzipFile(filename="",mode="wb",fileobj=dst,compresslevel=6,mtime=0) as z:
+                      while True:
+                          chunk=src.read(8*1024*1024)
+                          if not chunk: break
+                          z.write(chunk)
+              compress_s=time.perf_counter()-t
+
+              stored_sha=hashlib.sha256(gz.read_bytes()).hexdigest()
+              t=time.perf_counter(); dsha=hashlib.sha256(); drows=0
+              with gzip.open(gz,"rb") as f:
+                  while True:
+                      chunk=f.read(8*1024*1024)
+                      if not chunk: break
+                      dsha.update(chunk); drows+=chunk.count(b"\n")
+              decompress_s=time.perf_counter()-t
+              if dsha.hexdigest()!=raw_sha or drows!=rows:
+                  raise RuntimeError("gzip semantic readback mismatch")
+
+              rb=raw.stat().st_size; gb=gz.stat().st_size
+              report={
+                "inventory":objs,
+                "current_pointer":ptr,
+                "current_head":{"bytes":head["ContentLength"],"content_type":head.get("ContentType"),
+                  "content_encoding":head.get("ContentEncoding")},
+                "benchmark":{"codec":"gzip","level":6,"raw_bytes":rb,"gzip_bytes":gb,
+                  "ratio":gb/rb,"saved_bytes":rb-gb,"saved_pct":(1-gb/rb)*100,
+                  "download_seconds":download_s,"compress_seconds":compress_s,
+                  "decompress_hash_seconds":decompress_s,"raw_sha256":raw_sha,
+                  "stored_sha256":stored_sha,"record_count":rows,"parsed_record_count":parsed,
+                  "null_value_count":nulls,"readback_sha256":dsha.hexdigest(),
+                  "byte_exact_after_decompress":True}}
+              print("AUDIT_REPORT="+json.dumps(report,separators=(",",":"),sort_keys=True))
