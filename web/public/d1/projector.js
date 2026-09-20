@@ -23,6 +23,7 @@ async function loadStage(env,pointerKey){
 }
 const id=(...x)=>x.filter(v=>v!=null).join(":");
 const sql=v=>v===undefined?null:v;
+const pick=(x,...keys)=>{for(const k of keys)if(x?.[k]!==undefined&&x?.[k]!==null)return x[k];return null};
 const dist=(close,pivot)=>close==null||pivot==null?null:(Number(close)/Number(pivot)-1)*100;
 
 export async function buildProjection(env){
@@ -64,7 +65,7 @@ export async function syncProjection(env){
  }
  for(let i=0;i<ops.length;i+=80)await env.DB.batch(ops.slice(i,i+80));
  const pos=[];
- for(const x of p.positions)pos.push(env.DB.prepare("INSERT OR REPLACE INTO positions(position_id,candidate_id,security_id,pivot_level,entry_date,entry_price,state,exit_signal_date,exit_reason,exit_date,exit_price,eight_week_first_rapid_winner_date,last_evaluated_date,as_of_date,source_hash,projection_run_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(...[x.position_id,x.candidate_id,String(x.security_id),x.pivot_level,x.entry_date,x.entry_price,x.state,x.exit_signal_date,x.exit_reason,x.exit_date,x.exit_price,x.eight_week_first_rapid_winner_date,x.last_evaluated_date,asof,p.stages.l.hash,runId].map(sql)));
+ for(const x of p.positions){\n  const positionId=pick(x,"position_id","id"), candidateId=pick(x,"candidate_id"), securityId=pick(x,"security_id","ticker"), state=pick(x,"state","lifecycle_state");\n  if(!positionId||!candidateId||!state) throw Error("invalid lifecycle row identity/state");\n  pos.push(env.DB.prepare("INSERT OR REPLACE INTO positions(position_id,candidate_id,security_id,ticker,pattern_type,pivot_level,entry_date,entry_price,state,exit_signal_date,exit_reason,exit_date,exit_price,eight_week_first_rapid_winner_date,last_evaluated_date,as_of_date,source_hash,projection_run_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(...[positionId,candidateId,String(securityId),pick(x,"ticker"),pick(x,"pattern","pattern_type"),pick(x,"pivot_level"),pick(x,"entry_date"),pick(x,"entry_price"),state,pick(x,"exit_signal_date"),pick(x,"exit_reason"),pick(x,"exit_date"),pick(x,"exit_price"),pick(x,"eight_week_first_rapid_winner_date"),pick(x,"last_evaluated_date"),asof,p.stages.l.hash,runId].map(sql)));\n }
  for(let i=0;i<pos.length;i+=80)await env.DB.batch(pos.slice(i,i+80));
  return {run_id:runId,as_of_date:asof,opportunities:ops.length,positions:pos.length};
 }
