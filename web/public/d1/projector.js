@@ -25,17 +25,23 @@ const id=(...x)=>x.filter(v=>v!=null).join(":");
 const dist=(close,pivot)=>close==null||pivot==null?null:(Number(close)/Number(pivot)-1)*100;
 
 export async function buildProjection(env){
- const [m,c,t,l]=await Promise.all(Object.values(POINTERS).map(k=>loadStage(env,k)));
+ const [c,t,l]=await Promise.all([POINTERS.candidates,POINTERS.t1,POINTERS.lifecycle].map(k=>loadStage(env,k)));
+ // Morphology is intentionally not loaded in the edge Worker: the frozen raw
+ // morphology checkpoint is ~132 MB compressed as a GitHub artifact and far
+ // larger uncompressed, which exceeds Cloudflare Worker memory when parsed.
+ // Serving uses persisted technical candidates + T1 + lifecycle only.
+ const m={pointer:{as_of_date:c.pointer.as_of_date},meta:{upstream_frozen_ready:{source_hash:c.meta.upstream?.ready_source_hash||null},engine_version:c.meta.engine_version||"33-core-p8-frozen-v1"},hash:c.meta.upstream?.raw_morphology_sha256||null,rows:[]};
  const candidate=new Map(c.rows.map(x=>[x.candidate_id,x]));
  const t1=new Map(t.rows.map(x=>[x.candidate_id,x]));
  const opportunity=[];
- for(const x of m.rows){
+ for(const cc of c.rows){
+  const x={assessment_id:cc.candidate_id,base_id:cc.base_id??null,lineage_id:cc.lineage_id??null,security_id:cc.security_id,ticker:cc.ticker,pattern:cc.pattern??cc.pattern_type??null,normalized_status:"RECOGNIZED",native_state:null,candidate_semantics:null,structural_start:cc.structural_start??null,structural_end:cc.structural_end??null,pivot_source_date:cc.pivot_source_date??null,pivot_level:cc.pivot_level,depth_pct:cc.depth_pct??null,asof_date:cc.signal_date};
   // Core contract: PatternBreakoutCandidate.candidate_id is exactly the frozen
   // morphology assessment_id. Never fuzzy-match by ticker/date/pivot.
-  const cc=candidate.get(x.assessment_id)||null;
-  if(cc && (String(cc.security_id)!==String(x.security_id) || cc.signal_date!==x.asof_date))
+  // Candidate identity is already exact assessment identity by production contract.
+  if(String(cc.security_id)!==String(x.security_id) || cc.signal_date!==x.asof_date)
     throw Error("candidate/morphology identity mismatch: "+x.assessment_id);
-  const tt=cc?t1.get(cc.candidate_id)||null:null;
+  const tt=t1.get(cc.candidate_id)||null;
   if(tt && String(tt.security_id)!==String(x.security_id))
     throw Error("T1/candidate identity mismatch: "+x.assessment_id);
   opportunity.push({...x,breakout:cc,t1:tt});
@@ -53,7 +59,7 @@ export async function syncProjection(env){
  for(const q of p.opportunities){
   const b=q.breakout,t=q.t1, close=b?.close??null;
   ops.push(env.DB.prepare("INSERT OR REPLACE INTO opportunities(assessment_id,base_id,lineage_id,security_id,ticker,pattern_type,morphology_status,native_state,candidate_semantics,structural_start,structural_end,pivot_source_date,pivot_level,depth_pct,as_of_date,as_of_close,distance_to_pivot_pct,breakout_state,breakout_close,volume_ratio,signal_date,t1_open,open_extension_pct,t1_status,entry_date,entry_price,source_hash,projection_run_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
-   .bind(q.assessment_id,q.base_id,q.lineage_id,String(q.security_id),q.ticker,q.pattern,q.normalized_status,q.native_state,q.candidate_semantics,q.structural_start,q.structural_end,q.pivot_source_date,q.pivot_level,q.depth_pct,q.asof_date,close,dist(close,q.pivot_level),b?.breakout_state||"PIVOT_NOT_CROSSED",close,b?.breakout_volume_ratio??null,b?.signal_date??null,t?.next_open??null,t?.open_extension_pct??null,t?.entry_state??null,t?.fill_date??null,t?.fill_price??null,p.stages.m.hash,runId));
+   .bind(q.assessment_id,q.base_id,q.lineage_id,String(q.security_id),q.ticker,q.pattern,q.normalized_status,q.native_state,q.candidate_semantics,q.structural_start,q.structural_end,q.pivot_source_date,q.pivot_level,q.depth_pct,q.asof_date,close,dist(close,q.pivot_level),b?.breakout_state||"TECHNICAL_BREAKOUT_CANDIDATE",close,b?.breakout_volume_ratio??null,b?.signal_date??null,t?.next_open??null,t?.open_extension_pct??null,t?.entry_state??null,t?.fill_date??null,t?.fill_price??null,p.stages.m.hash,runId));
  }
  for(let i=0;i<ops.length;i+=80)await env.DB.batch(ops.slice(i,i+80));
  const pos=[];
