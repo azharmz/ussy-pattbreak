@@ -1,0 +1,23 @@
+name: Validate morphology retention
+
+on:
+  push:
+    branches: ["storage/retention-2-v1"]
+    paths:
+      - "src/pattern_breakout/checkpoint_store_v1.py"
+      - "tests/test_checkpoint_store_v1.py"
+      - ".github/workflows/validate-morphology-retention.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: python -m pip install -e . pytest
+      - run: pytest -q
