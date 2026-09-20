@@ -1,6 +1,6 @@
 import gzip, hashlib, json
 import pytest
-from pattern_breakout.checkpoint_store_v1 import publish_checkpoint,load_current_checkpoint
+from pattern_breakout.checkpoint_store_v1 import publish_checkpoint,load_current_checkpoint,enforce_stage_retention
 
 class Body:
  def __init__(self,b): self.b=b
@@ -69,6 +69,16 @@ def test_same_day_same_logical_snapshot_does_not_multiply_payload_keys():
  assert len(payload)==1
 
 def test_retention_refuses_policy_that_could_drop_current():
- from pattern_breakout.checkpoint_store_v1 import enforce_morphology_retention
+ s=S3()\n with pytest.raises(ValueError): enforce_stage_retention(s,"b","morphology",{"as_of_date":"2026-09-20"},keep_dates=1)
+
+def test_dashboard_opportunities_gzip_and_retention():
  s=S3()
- with pytest.raises(ValueError): enforce_morphology_retention(s,"b",{"as_of_date":"2026-09-20"},keep_dates=1)
+ for d,x in [("2026-09-17",1),("2026-09-18",2),("2026-09-19",3)]:
+  raw=((json.dumps({"x":x})+"\n")*100).encode(); h=hashlib.sha256(raw).hexdigest()
+  p=publish_checkpoint(s,"b",stage="dashboard-opportunities",as_of_date=d,metadata={"source_hash":"sha256:"+h},jsonl=raw)
+ assert p["representation"]=="ndjson+gzip" and p["jsonl_key"].endswith(".jsonl.gz")
+ assert p["retention"]["keep_dates"]==["2026-09-19","2026-09-18"]
+ _,meta,out=load_current_checkpoint(s,"b",stage="dashboard-opportunities")
+ assert out==raw and meta["storage"]["logical_sha256"]==h
+ keys=[k for (b,k) in s.x if "/dashboard-opportunities/runs/" in k]
+ assert not any("/2026-09-17/" in k for k in keys)
