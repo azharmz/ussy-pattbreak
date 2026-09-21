@@ -1,5 +1,8 @@
 name: Publish dashboard current prices
 on:
+  push:
+    branches: ["dispatch/history-seed-via-prices-20260921"]
+    paths: [".dispatch/history-seed-via-prices-20260921"]
   workflow_dispatch:
 permissions:
   contents: read
