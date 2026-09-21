@@ -8,11 +8,6 @@ on:
         default: "35428239292"
       security_id:
         required: true
-  push:
-    branches:
-      - audit/gnrc-pivot-lifecycle
-    paths:
-      - .github/dispatch/gnrc-pivot-lifecycle
 
 permissions:
   contents: read
