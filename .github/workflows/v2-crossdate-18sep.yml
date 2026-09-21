@@ -18,23 +18,23 @@ jobs:
       - uses: actions/setup-python@v5
         with: {python-version: "3.11"}
       - run: pip install pandas pyarrow boto3
+      - name: Freeze exact current READY
+        run: python scripts/freeze_ready.py --output upstream/frozen-ready.json
       - name: Stage exact 18 Sep morphology checkpoint from R2
         run: |
-          mkdir -p upstream
           python - <<'PY'
           import boto3,gzip,json,os
           s=boto3.client("s3",endpoint_url=os.environ["R2_ENDPOINT"],aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],region_name="auto")
           b=os.environ["R2_BUCKET_NAME"]; p=json.loads(s.get_object(Bucket=b,Key="pattern-breakout/production/morphology/current.json")["Body"].read())
           if p["as_of_date"]!="2026-09-18": raise SystemExit(f"expected 2026-09-18 morphology current, got {p['as_of_date']}")
+          frozen=json.load(open("upstream/frozen-ready.json"))
+          if frozen["ready"]["as_of_date"]!="2026-09-18": raise SystemExit("READY current is not 2026-09-18")
           raw=s.get_object(Bucket=b,Key=p["jsonl_key"])["Body"].read()
           if p.get("representation")=="ndjson+gzip": raw=gzip.decompress(raw)
           open("upstream/raw-oneil-morphology.jsonl","wb").write(raw)
           meta=json.loads(s.get_object(Bucket=b,Key=p["metadata_key"])["Body"].read())
-          open("upstream/raw-oneil-morphology.json","w").write(json.dumps(meta))
-          ready=json.loads(s.get_object(Bucket=b,Key="production/ready/current.json")["Body"].read())
-          frozen={"contract_version":"pattern-breakout-pipeline-v1","created_at":p.get("updated_at"),"producer_commit":"r2-reconstruction","producer_run":"r2-reconstruction","ready":{"as_of_date":ready["as_of_date"],"parquet_key":ready["parquet_key"],"pointer_key":"production/ready/current.json","rows":ready.get("rows"),"securities":ready.get("securities")},"schema_version":ready.get("schema_version"),"source_hash":ready["source_hash"],"source_identity":f"ussy-data:production/ready/current.json->{ready['parquet_key']}","stage":"frozen_ready"}
           if meta["upstream_frozen_ready"]["source_hash"]!=frozen["source_hash"]: raise SystemExit("morphology/READY hash mismatch")
-          open("upstream/frozen-ready.json","w").write(json.dumps(frozen))
+          open("upstream/raw-oneil-morphology.json","w").write(json.dumps(meta))
           PY
       - run: python scripts/build_breakout_events_v2_shadow.py --input-dir upstream --output-dir shadow
       - uses: actions/upload-artifact@v4
