@@ -6,11 +6,6 @@ on:
       morphology_run_id:
         required: true
         default: "35428239292"
-  push:
-    branches:
-      - design/breakout-contract-v2
-    paths:
-      - .github/dispatch/breakout-v2-shadow-17sep
 
 permissions:
   contents: read
