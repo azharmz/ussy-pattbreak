@@ -72,6 +72,12 @@ def publish_checkpoint(s3,bucket:str,*,stage:str,as_of_date:str,metadata:dict,js
     pointer={"schema_version":"pattern-breakout-checkpoint-pointer-v2" if stage in COMPRESSED_STAGES else "pattern-breakout-checkpoint-pointer-v1","stage":stage,"as_of_date":as_of_date,"source_hash":f"sha256:{digest}","jsonl_key":key,"metadata_key":mkey,"updated_at":datetime.now(timezone.utc).isoformat()}
     if stage in COMPRESSED_STAGES: pointer.update({"representation":MORPHOLOGY_REPRESENTATION,"stored_hash":f"sha256:{metadata['storage']['stored_sha256']}","stored_bytes":metadata["storage"]["stored_bytes"],"logical_bytes":metadata["storage"]["logical_bytes"]})
     s3.put_object(Bucket=bucket,Key=f"{prefix}/current.json",Body=(json.dumps(pointer,sort_keys=True,separators=(",",":"))+"\n").encode(),ContentType="application/json")
+    if stage=="candidates":
+        s3.put_object(Bucket=bucket,Key=f"{prefix}/by-signal-date/{as_of_date}.json",Body=(json.dumps(pointer,sort_keys=True,separators=(",",":"))+"\n").encode(),ContentType="application/json")
+    elif stage=="t1-execution":
+        signal_date=(metadata.get("summary") or {}).get("signal_date")
+        if signal_date:
+            s3.put_object(Bucket=bucket,Key=f"{prefix}/by-signal-date/{signal_date}.json",Body=(json.dumps(pointer,sort_keys=True,separators=(",",":"))+"\n").encode(),ContentType="application/json")
     if stage in RETENTION_STAGES:
         # Cleanup only after the new immutable payload, manifest and CURRENT pointer are durable.
         pointer["retention"]=enforce_stage_retention(s3,bucket,stage,pointer)
