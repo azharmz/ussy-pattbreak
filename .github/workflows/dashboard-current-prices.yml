@@ -1,8 +1,5 @@
 name: Publish dashboard current prices
 on:
-  push:
-    branches: ["dispatch/prices-lifecycle-fix-20260921"]
-    paths: [".dispatch/prices-lifecycle-fix-20260921"]
   workflow_dispatch:
 permissions:
   contents: read
