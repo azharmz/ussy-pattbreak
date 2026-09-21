@@ -6,11 +6,6 @@ on:
       morphology_run_id:
         required: true
         default: "35428239292"
-  push:
-    branches:
-      - audit/competing-pivots-17sep
-    paths:
-      - .github/dispatch/competing-pivots-17sep
 
 permissions:
   contents: read
