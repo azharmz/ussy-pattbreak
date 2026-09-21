@@ -5,9 +5,6 @@ on:
       t1_run_id:
         required: true
         default: "35433809906"
-  push:
-    branches: [audit/t1-multipivot-arbitration-17sep]
-    paths: [.github/dispatch/t1-multipivot-arbitration-17sep]
 permissions:
   contents: read
   actions: read
