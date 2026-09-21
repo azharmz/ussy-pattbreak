@@ -77,7 +77,6 @@ def main():
       "securities_with_multiple_within_5pct":sum(x["within_5pct_event_count"]>1 for x in competing),
       "securities_with_zero_within_5pct":sum(x["within_5pct_event_count"]==0 for x in competing)}
     payload={"schema":"competing-pivot-audit-v1","summary":summary,"securities":competing}
-    out=Path(a.output); out.parent.mkdir(parents=True,exist_ok=True); out.write_text(json.dumps(payload,indent=2,sort_keys=True)+"
-")
+    out=Path(a.output); out.parent.mkdir(parents=True,exist_ok=True); out.write_text(json.dumps(payload,indent=2,sort_keys=True)+chr(10))
     print(json.dumps(summary,sort_keys=True))
 if __name__=="__main__": main()
