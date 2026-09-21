@@ -1,11 +1,6 @@
 name: Audit buy-zone pivot policy
 
 on:
-  push:
-    branches:
-      - audit/buy-zone-17sep
-    paths:
-      - .github/dispatch/buy-zone-17sep
   workflow_dispatch:
     inputs:
       morphology_run_id:
