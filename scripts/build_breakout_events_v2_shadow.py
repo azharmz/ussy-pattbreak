@@ -77,8 +77,10 @@ def main():
       "competing_event_count":sum(e["competing_pivot"] for e in events),
       "competing_security_count":len({e["security_id"] for e in events if e["competing_pivot"]}),
       "events_sha256":hashlib.sha256(lines.encode()).hexdigest()}
-    if summary["v1_assessment_hits"]!=426 or summary["first_qualifying_assessments"]!=293 or summary["recycled_assessments"]!=133:
-        raise ValueError(f"2026-09-17 baseline reconciliation failed: {summary}")
+    expected={"2026-09-17":(426,293,133)}
+    exp=expected.get(summary["as_of_date"])
+    if exp and (summary["v1_assessment_hits"],summary["first_qualifying_assessments"],summary["recycled_assessments"])!=exp:
+        raise ValueError(f"frozen baseline reconciliation failed: {summary}")
     (out/"breakout-events-v2-summary.json").write_text(json.dumps(summary,indent=2,sort_keys=True)+"\n")
     print(json.dumps(summary,sort_keys=True))
 if __name__=="__main__": main()
