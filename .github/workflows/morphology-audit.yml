@@ -10,6 +10,11 @@ on:
       security_id:
         description: Exact security_id to extract
         required: true
+  push:
+    branches:
+      - audit/run-gnrc-morphology
+    paths:
+      - .github/dispatch/morphology-audit-gnrc
 
 permissions:
   contents: read
@@ -20,8 +25,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      MORPHOLOGY_RUN_ID: ${{ inputs.morphology_run_id }}
-      SECURITY_ID: ${{ inputs.security_id }}
+      MORPHOLOGY_RUN_ID: ${{ inputs.morphology_run_id || '35428239292' }}
+      SECURITY_ID: ${{ inputs.security_id || 'GNRC' }}
     steps:
       - uses: actions/checkout@v4
       - name: Download frozen morphology checkpoint
