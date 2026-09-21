@@ -22,6 +22,17 @@ jobs:
         run: python scripts/build_dashboard_prices_current.py
       - name: Publish durable prices
         run: python scripts/publish_durable_checkpoint.py --stage dashboard-prices
+      - name: Refresh D1 dashboard projection
+        env:
+          DASHBOARD_SYNC_TOKEN: ${{ secrets.DASHBOARD_SYNC_TOKEN }}
+        run: |
+          curl --fail-with-body --retry 3 --retry-delay 2 \
+            -X POST \
+            -H "Authorization: Bearer ${DASHBOARD_SYNC_TOKEN}" \
+            https://ussy-pattern-breakout.pages.dev/api/admin/sync
+      - name: Verify production dashboard
+        run: |
+          curl --fail-with-body --retry 3 https://ussy-pattern-breakout.pages.dev/api/health
       - uses: actions/upload-artifact@v4
         with:
           name: dashboard-prices-${{ github.run_id }}
