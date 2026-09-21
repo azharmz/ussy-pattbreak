@@ -1,6 +1,9 @@
 name: Build dashboard opportunity snapshot
 
 on:
+  push:
+    branches: ["dispatch/dashboard-prices-35428239292"]
+    paths: [".github/workflows/dashboard-opportunity-snapshot.yml", "src/pattern_breakout/checkpoint_store_v1.py"]
   workflow_dispatch:
     inputs:
       morphology_run_id:
@@ -21,7 +24,7 @@ jobs:
       R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
       R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
       R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
-      MORPHOLOGY_RUN_ID: ${{ inputs.morphology_run_id }}
+      MORPHOLOGY_RUN_ID: ${{ inputs.morphology_run_id || '35428239292' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
