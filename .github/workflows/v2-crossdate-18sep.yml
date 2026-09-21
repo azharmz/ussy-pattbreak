@@ -31,7 +31,9 @@ jobs:
           open("upstream/raw-oneil-morphology.jsonl","wb").write(raw)
           meta=json.loads(s.get_object(Bucket=b,Key=p["metadata_key"])["Body"].read())
           open("upstream/raw-oneil-morphology.json","w").write(json.dumps(meta))
-          frozen=meta["upstream_frozen_ready"]
+          ready=json.loads(s.get_object(Bucket=b,Key="production/ready/current.json")["Body"].read())
+          frozen={"contract_version":"pattern-breakout-pipeline-v1","created_at":p.get("updated_at"),"producer_commit":"r2-reconstruction","producer_run":"r2-reconstruction","ready":{"as_of_date":ready["as_of_date"],"parquet_key":ready["parquet_key"],"pointer_key":"production/ready/current.json","rows":ready.get("rows"),"securities":ready.get("securities")},"schema_version":ready.get("schema_version"),"source_hash":ready["source_hash"],"source_identity":f"ussy-data:production/ready/current.json->{ready['parquet_key']}","stage":"frozen_ready"}
+          if meta["upstream_frozen_ready"]["source_hash"]!=frozen["source_hash"]: raise SystemExit("morphology/READY hash mismatch")
           open("upstream/frozen-ready.json","w").write(json.dumps(frozen))
           PY
       - run: python scripts/build_breakout_events_v2_shadow.py --input-dir upstream --output-dir shadow
