@@ -1,5 +1,6 @@
 name: One-shot seed opportunity history
 on:
+  workflow_dispatch:
   push:
     branches: ["dispatch/opportunity-history-seed-20260921"]
     paths: [".dispatch/opportunity-history-seed-20260921"]
