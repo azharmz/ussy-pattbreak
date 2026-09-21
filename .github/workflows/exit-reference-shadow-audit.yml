@@ -3,9 +3,6 @@ on:
   workflow_dispatch:
     inputs:
       t1_run_id: {required: true, default: "35433809906"}
-  push:
-    branches: [audit/exit-reference-shadow-17sep]
-    paths: [.github/dispatch/exit-reference-shadow-17sep]
 permissions: {contents: read, actions: read}
 jobs:
   audit:
