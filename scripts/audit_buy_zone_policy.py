@@ -57,20 +57,27 @@ def main():
             ends=sorted({x.get("structural_end") for x in xs if x.get("structural_end")})
             sources=sorted({x.get("pivot_source_date") for x in xs if x.get("pivot_source_date")})
             semantics=sorted({x.get("candidate_semantics") for x in xs if x.get("candidate_semantics")})
-            dist=(close/p-1)*100\n            rec["events"].append({"pivot_level":p,"distance_above_pivot_pct":dist,"within_5pct_at_signal":dist<=5.0,
+            dist=(close/p-1)*100
+            rec["events"].append({"pivot_level":p,"distance_above_pivot_pct":dist,"within_5pct_at_signal":dist<=5.0,
               "assessment_count":len(xs),"base_count":len({x["base_id"] for x in xs}),
               "lineage_count":len({x.get("lineage_id") for x in xs if x.get("lineage_id")}),
               "patterns":sorted({x.get("pattern") for x in xs}),"candidate_semantics":semantics,
               "structural_starts":starts,"structural_ends":ends,"pivot_source_dates":sources,
               "depth_pct_min":min(float(x["depth_pct"]) for x in xs if x.get("depth_pct") is not None) if any(x.get("depth_pct") is not None for x in xs) else None,
               "depth_pct_max":max(float(x["depth_pct"]) for x in xs if x.get("depth_pct") is not None) if any(x.get("depth_pct") is not None for x in xs) else None})
-        rec["within_5pct_event_count"]=sum(e["within_5pct_at_signal"] for e in rec["events"])\n        competing.append(rec)
+        rec["within_5pct_event_count"]=sum(e["within_5pct_at_signal"] for e in rec["events"])
+        competing.append(rec)
     summary={"as_of_date":asof.date().isoformat(),"surviving_assessments":len(survivors),"event_count":len(groups),
       "competing_security_count":len(competing),"competing_event_count":sum(x["event_count"] for x in competing),
       "pivot_count_distribution":dict(sorted(__import__("collections").Counter(x["event_count"] for x in competing).items())),
       "securities_with_open_right_edge":sum(any("OPEN_RIGHT_EDGE" in s for e in x["events"] for s in e["candidate_semantics"]) for x in competing),
-      "securities_with_multiple_open_right_edge_events":sum(sum(any("OPEN_RIGHT_EDGE" in s for s in e["candidate_semantics"]) for e in x["events"])>1 for x in competing),\n      "within_5pct_event_count":sum(sum(e["within_5pct_at_signal"] for e in x["events"]) for x in competing),\n      "securities_with_exactly_one_within_5pct":sum(x["within_5pct_event_count"]==1 for x in competing),\n      "securities_with_multiple_within_5pct":sum(x["within_5pct_event_count"]>1 for x in competing),\n      "securities_with_zero_within_5pct":sum(x["within_5pct_event_count"]==0 for x in competing)}
+      "securities_with_multiple_open_right_edge_events":sum(sum(any("OPEN_RIGHT_EDGE" in s for s in e["candidate_semantics"]) for e in x["events"])>1 for x in competing),
+      "within_5pct_event_count":sum(sum(e["within_5pct_at_signal"] for e in x["events"]) for x in competing),
+      "securities_with_exactly_one_within_5pct":sum(x["within_5pct_event_count"]==1 for x in competing),
+      "securities_with_multiple_within_5pct":sum(x["within_5pct_event_count"]>1 for x in competing),
+      "securities_with_zero_within_5pct":sum(x["within_5pct_event_count"]==0 for x in competing)}
     payload={"schema":"competing-pivot-audit-v1","summary":summary,"securities":competing}
-    out=Path(a.output); out.parent.mkdir(parents=True,exist_ok=True); out.write_text(json.dumps(payload,indent=2,sort_keys=True)+"\n")
+    out=Path(a.output); out.parent.mkdir(parents=True,exist_ok=True); out.write_text(json.dumps(payload,indent=2,sort_keys=True)+"
+")
     print(json.dumps(summary,sort_keys=True))
 if __name__=="__main__": main()
