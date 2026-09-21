@@ -1,5 +1,6 @@
 name: One-shot dashboard v11 sync
 on:
+  workflow_dispatch:
   push:
     branches: ["dispatch/dashboard-sync-v11-20260921"]
     paths: [".dispatch/dashboard-sync-v11-20260921"]
