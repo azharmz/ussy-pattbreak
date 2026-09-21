@@ -1,0 +1,31 @@
+name: Publish dashboard current prices
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  prices:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install -e . boto3 pyarrow
+      - name: Build prices from current READY
+        run: python scripts/build_dashboard_prices_current.py
+      - name: Publish durable prices
+        run: python scripts/publish_durable_checkpoint.py --stage dashboard-prices
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-prices-${{ github.run_id }}
+          path: |
+            checkpoints/dashboard-prices.json
+            checkpoints/dashboard-prices.jsonl
+          retention-days: 14
