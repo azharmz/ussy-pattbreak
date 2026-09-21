@@ -33,6 +33,24 @@ jobs:
       - name: Verify production dashboard
         run: |
           curl --fail-with-body --retry 3 https://ussy-pattern-breakout.pages.dev/api/health
+      - name: Refresh D1 dashboard projection
+        env:
+          DASHBOARD_SYNC_TOKEN: ${{ secrets.DASHBOARD_SYNC_TOKEN }}
+        run: |
+          curl --fail-with-body --retry 3 --retry-delay 2 \
+            -X POST \
+            -H "Authorization: Bearer ${DASHBOARD_SYNC_TOKEN}" \
+            https://ussy-pattern-breakout.pages.dev/api/admin/sync
+      - name: Verify production dashboard
+        run: |
+          python - <<'PY'
+          import json, urllib.request
+          with urllib.request.urlopen("https://ussy-pattern-breakout.pages.dev/api/health") as r:
+              h=json.load(r)
+          assert h["status"]=="READY", h
+          assert h["latest_projection"]["price_source_hash"], h
+          print(json.dumps(h, sort_keys=True))
+          PY
       - uses: actions/upload-artifact@v4
         with:
           name: dashboard-prices-${{ github.run_id }}
