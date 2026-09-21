@@ -1,0 +1,49 @@
+name: Shadow breakout contract v2
+
+on:
+  workflow_dispatch:
+    inputs:
+      morphology_run_id:
+        required: true
+        default: "35428239292"
+  push:
+    branches:
+      - design/breakout-contract-v2
+    paths:
+      - .github/dispatch/breakout-v2-shadow-17sep
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  shadow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+      MORPHOLOGY_RUN_ID: ${{ inputs.morphology_run_id || '35428239292' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install pandas pyarrow boto3
+      - name: Download exact frozen morphology checkpoint
+        uses: actions/download-artifact@v4
+        with:
+          name: raw-oneil-morphology-${{ env.MORPHOLOGY_RUN_ID }}
+          path: upstream
+          run-id: ${{ env.MORPHOLOGY_RUN_ID }}
+          github-token: ${{ github.token }}
+      - name: Build v2 shadow events
+        run: python scripts/build_breakout_events_v2_shadow.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: breakout-events-v2-shadow-${{ github.run_id }}
+          path: shadow/
+          retention-days: 7
+          if-no-files-found: error
