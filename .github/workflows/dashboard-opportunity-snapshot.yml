@@ -47,12 +47,16 @@ jobs:
       - name: Build compact serving snapshot
         run: python scripts/build_dashboard_opportunity_snapshot.py --ready-parquet upstream/ready.parquet
       - name: Publish compact serving snapshot
-        run: python scripts/publish_durable_checkpoint.py --stage dashboard-opportunities
+        run: |
+          python scripts/publish_durable_checkpoint.py --stage dashboard-opportunities
+          python scripts/publish_durable_checkpoint.py --stage dashboard-prices
       - uses: actions/upload-artifact@v4
         with:
           name: dashboard-opportunities-${{ github.run_id }}
           path: |
             checkpoints/dashboard-opportunities.json
             checkpoints/dashboard-opportunities.jsonl
+            checkpoints/dashboard-prices.json
+            checkpoints/dashboard-prices.jsonl
           if-no-files-found: error
           retention-days: 30

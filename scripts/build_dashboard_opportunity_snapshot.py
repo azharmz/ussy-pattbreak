@@ -14,6 +14,7 @@ def main():
     ap.add_argument("--input-dir",default="upstream")
     ap.add_argument("--ready-parquet",required=True)
     ap.add_argument("--output",default="checkpoints/dashboard-opportunities.jsonl")
+    ap.add_argument("--price-output",default="checkpoints/dashboard-prices.jsonl")
     a=ap.parse_args()
     inp=Path(a.input_dir)
     raw=json.loads((inp/"raw-oneil-morphology.json").read_text())
@@ -23,6 +24,11 @@ def main():
         for chunk in iter(lambda:f.read(8*1024*1024),b""): h.update(chunk)
     if h.hexdigest()!=raw["morphology"]["jsonl_sha256"]: raise ValueError("RAW morphology checksum mismatch")
     asof=raw["upstream_frozen_ready"]["as_of_date"]
+    ready_path=Path(a.ready_parquet)
+    ready_sha=hashlib.sha256(ready_path.read_bytes()).hexdigest()
+    frozen_ready=raw["upstream_frozen_ready"]
+    expected_ready=str(frozen_ready["source_hash"]).replace("sha256:","")
+    if ready_sha!=expected_ready: raise ValueError("READY parquet checksum mismatch")
     df=pd.read_parquet(a.ready_parquet,columns=["date","security_id","ticker","close"])
     df["date"]=pd.to_datetime(df["date"]).dt.tz_localize(None).dt.normalize()
     d=pd.Timestamp(asof)
@@ -51,6 +57,13 @@ def main():
     meta={"schema_version":VERSION,"as_of_date":asof,"record_count":len(rows),"source_hash":"sha256:"+digest,
           "upstream":{"raw_morphology_sha256":raw["morphology"]["jsonl_sha256"],"ready_source_hash":raw["upstream_frozen_ready"]["source_hash"]}}
     out.with_suffix(".json").write_text(json.dumps(meta,indent=2,sort_keys=True)+"\n")
-    print(json.dumps({"as_of_date":asof,"record_count":len(rows),"source_hash":"sha256:"+digest},sort_keys=True))
+    price_rows=[{"security_id":sid,"ticker":ticker,"as_of_date":date,"close":close} for sid,(ticker,close,date) in sorted(bars.items()) if date==asof]
+    pout=Path(a.price_output); pout.parent.mkdir(parents=True,exist_ok=True)
+    pbody="".join(json.dumps(x,sort_keys=True,separators=(",",":"))+"\n" for x in price_rows)
+    pout.write_text(pbody)
+    pdigest=hashlib.sha256(pbody.encode()).hexdigest()
+    pmeta={"schema_version":"dashboard-price-enrichment-v1","as_of_date":asof,"record_count":len(price_rows),"source_hash":"sha256:"+pdigest,"ready_source_hash":"sha256:"+ready_sha}
+    pout.with_suffix(".json").write_text(json.dumps(pmeta,indent=2,sort_keys=True)+"\n")
+    print(json.dumps({"as_of_date":asof,"record_count":len(rows),"source_hash":"sha256:"+digest,"price_records":len(price_rows),"price_source_hash":"sha256:"+pdigest},sort_keys=True))
 
 if __name__=="__main__": main()
