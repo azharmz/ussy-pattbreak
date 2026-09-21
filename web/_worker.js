@@ -1,4 +1,4 @@
-import {ensureSchema,currentRun,validCurrent} from "./d1/projector.js";
+import {ensureSchema,currentRun,validCurrent} from "./d1/runtime.js";
 import {syncProjectionV9} from "./d1/compact.js";
 const json=(x,s=200)=>new Response(JSON.stringify(x),{status:s,headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store"}});
 function page(url){const l=Number(url.searchParams.get("limit")??100),o=Number(url.searchParams.get("offset")??0);if(!Number.isInteger(l)||l<1||l>500||!Number.isInteger(o)||o<0)throw Error("invalid pagination");return[l,o]}
