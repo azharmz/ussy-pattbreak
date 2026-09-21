@@ -1,0 +1,61 @@
+name: Daily Pattern Breakout signals
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pattern-breakout-daily-signals
+  cancel-in-progress: false
+
+jobs:
+  signals:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+      ONEIL_SHA: c433cc1e35a5aa32a46f732cd8c5545935e36e40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Pattern Breakout runtime
+        run: python -m pip install -e . boto3
+      - name: Checkout exact frozen ONeil engine
+        uses: actions/checkout@v4
+        with:
+          repository: azharmz/ussy-oneil-patterns
+          ref: ${{ env.ONEIL_SHA }}
+          path: _frozen/ussy-oneil-patterns
+          persist-credentials: false
+      - name: Install exact frozen ONeil engine
+        run: python -m pip install ./_frozen/ussy-oneil-patterns
+      - name: Build morphology from current READY
+        run: python scripts/build_raw_morphology.py
+      - name: Publish morphology checkpoint
+        run: python scripts/publish_durable_checkpoint.py --stage morphology
+      - name: Stage exact morphology locally
+        run: |
+          mkdir -p upstream
+          cp checkpoints/frozen-ready.json upstream/
+          cp checkpoints/raw-oneil-morphology.json upstream/
+          cp checkpoints/raw-oneil-morphology.jsonl upstream/
+      - name: Build breakout candidates
+        run: python scripts/build_breakout_candidate.py
+      - name: Publish candidate checkpoint
+        run: python scripts/publish_durable_checkpoint.py --stage candidates
+      - uses: actions/upload-artifact@v4
+        with:
+          name: daily-pattern-signals-${{ github.run_id }}
+          path: |
+            checkpoints/frozen-ready.json
+            checkpoints/raw-oneil-morphology.json
+            checkpoints/breakout-candidate.json
+            checkpoints/breakout-candidate.jsonl
+          retention-days: 14
