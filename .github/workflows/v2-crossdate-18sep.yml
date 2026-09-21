@@ -1,0 +1,42 @@
+name: Shadow v2 cross-date validation
+on:
+  workflow_dispatch:
+  push:
+    branches: [shadow/v2-crossdate-18sep]
+    paths: [.github/dispatch/v2-crossdate-18sep]
+permissions: {contents: read}
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: pip install pandas pyarrow boto3
+      - name: Stage exact 18 Sep morphology checkpoint from R2
+        run: |
+          mkdir -p upstream
+          python - <<'PY'
+          import boto3,gzip,json,os
+          s=boto3.client("s3",endpoint_url=os.environ["R2_ENDPOINT"],aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],region_name="auto")
+          b=os.environ["R2_BUCKET_NAME"]; p=json.loads(s.get_object(Bucket=b,Key="pattern-breakout/production/morphology/current.json")["Body"].read())
+          if p["as_of_date"]!="2026-09-18": raise SystemExit(f"expected 2026-09-18 morphology current, got {p['as_of_date']}")
+          raw=s.get_object(Bucket=b,Key=p["jsonl_key"])["Body"].read()
+          if p.get("representation")=="ndjson+gzip": raw=gzip.decompress(raw)
+          open("upstream/raw-oneil-morphology.jsonl","wb").write(raw)
+          meta=json.loads(s.get_object(Bucket=b,Key=p["metadata_key"])["Body"].read())
+          open("upstream/raw-oneil-morphology.json","w").write(json.dumps(meta))
+          frozen=meta["upstream_frozen_ready"]
+          open("upstream/frozen-ready.json","w").write(json.dumps(frozen))
+          PY
+      - run: python scripts/build_breakout_events_v2_shadow.py --input-dir upstream --output-dir shadow
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v2-crossdate-18sep-${{ github.run_id }}
+          path: shadow/
+          retention-days: 7
