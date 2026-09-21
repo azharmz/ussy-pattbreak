@@ -64,7 +64,31 @@ def main():
           "unique_pivots":len({r["pivot_level"] for r in rs}),
           "first_unique_pivots":len({r["pivot_level"] for r in rs if r["classification"]=="FIRST_QUALIFYING_BREAKOUT"}),
           "recycled_unique_pivots":len({r["pivot_level"] for r in rs if r["classification"]=="RECYCLED_PIVOT"})})
-    survivors=[r for r in rows if r["classification"]=="FIRST_QUALIFYING_BREAKOUT"]\n    def groups(keyfn):\n        d=defaultdict(list)\n        for r in survivors: d[keyfn(r)].append(r)\n        return d\n    by_base=groups(lambda r:(r["security_id"],r.get("base_id")))\n    by_lineage=groups(lambda r:(r["security_id"],r.get("lineage_id")))\n    by_pivot=groups(lambda r:(r["security_id"],r["pivot_level"]))\n    by_base_pivot=groups(lambda r:(r["security_id"],r.get("base_id"),r["pivot_level"]))\n    identity_summary={\n      "surviving_assessments":len(survivors),\n      "unique_security_pivots":len(by_pivot),\n      "unique_security_base_ids":len(by_base),\n      "unique_security_lineage_ids":len(by_lineage),\n      "unique_security_base_pivots":len(by_base_pivot),\n      "base_groups_with_multiple_assessments":sum(len(v)>1 for v in by_base.values()),\n      "lineage_groups_with_multiple_assessments":sum(len(v)>1 for v in by_lineage.values()),\n      "pivot_groups_with_multiple_assessments":sum(len(v)>1 for v in by_pivot.values()),\n      "base_groups_spanning_multiple_pivots":sum(len({r["pivot_level"] for r in v})>1 for v in by_base.values()),\n      "lineage_groups_spanning_multiple_pivots":sum(len({r["pivot_level"] for r in v})>1 for v in by_lineage.values()),\n      "pivot_groups_spanning_multiple_base_ids":sum(len({r.get("base_id") for r in v})>1 for v in by_pivot.values()),\n      "pivot_groups_spanning_multiple_lineage_ids":sum(len({r.get("lineage_id") for r in v})>1 for v in by_pivot.values()),\n    }\n    payload={"schema":"first-breakout-audit-v2","as_of_date":asof.date().isoformat(),"volume_threshold":VOL_THRESHOLD,
+    survivors=[r for r in rows if r["classification"]=="FIRST_QUALIFYING_BREAKOUT"]
+    def groups(keyfn):
+        d=defaultdict(list)
+        for r in survivors:
+            d[keyfn(r)].append(r)
+        return d
+    by_base=groups(lambda r:(r["security_id"],r.get("base_id")))
+    by_lineage=groups(lambda r:(r["security_id"],r.get("lineage_id")))
+    by_pivot=groups(lambda r:(r["security_id"],r["pivot_level"]))
+    by_base_pivot=groups(lambda r:(r["security_id"],r.get("base_id"),r["pivot_level"]))
+    identity_summary={
+      "surviving_assessments":len(survivors),
+      "unique_security_pivots":len(by_pivot),
+      "unique_security_base_ids":len(by_base),
+      "unique_security_lineage_ids":len(by_lineage),
+      "unique_security_base_pivots":len(by_base_pivot),
+      "base_groups_with_multiple_assessments":sum(len(v)>1 for v in by_base.values()),
+      "lineage_groups_with_multiple_assessments":sum(len(v)>1 for v in by_lineage.values()),
+      "pivot_groups_with_multiple_assessments":sum(len(v)>1 for v in by_pivot.values()),
+      "base_groups_spanning_multiple_pivots":sum(len({r["pivot_level"] for r in v})>1 for v in by_base.values()),
+      "lineage_groups_spanning_multiple_pivots":sum(len({r["pivot_level"] for r in v})>1 for v in by_lineage.values()),
+      "pivot_groups_spanning_multiple_base_ids":sum(len({r.get("base_id") for r in v})>1 for v in by_pivot.values()),
+      "pivot_groups_spanning_multiple_lineage_ids":sum(len({r.get("lineage_id") for r in v})>1 for v in by_pivot.values()),
+    }
+    payload={"schema":"first-breakout-audit-v2","as_of_date":asof.date().isoformat(),"volume_threshold":VOL_THRESHOLD,
       "eligibility_anchor":"assessment.structural_end (fallback pivot_source_date/structural_start)",
       "candidate_assessments":len(rows),"classification_counts":dict(cls),
       "unique_securities":len(bysec),"unique_security_pivots":len({(r["security_id"],r["pivot_level"]) for r in rows}),
