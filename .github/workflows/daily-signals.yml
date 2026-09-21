@@ -1,6 +1,9 @@
 name: Daily Pattern Breakout signals
 
 on:
+  push:
+    branches: ["dispatch/daily-signals-20260921"]
+    paths: [".dispatch/daily-signals-20260921"]
   workflow_dispatch:
 
 permissions:
