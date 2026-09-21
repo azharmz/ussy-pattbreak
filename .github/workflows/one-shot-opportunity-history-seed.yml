@@ -1,0 +1,19 @@
+name: One-shot seed opportunity history
+on:
+  push:
+    branches: ["dispatch/opportunity-history-seed-20260921"]
+    paths: [".dispatch/opportunity-history-seed-20260921"]
+permissions:
+  contents: read
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sync current cohort 18 Sep
+        env:
+          TOKEN: ${{ secrets.DASHBOARD_SYNC_TOKEN }}
+        run: curl --fail-with-body -X POST -H "Authorization: Bearer ${TOKEN}" https://ussy-pattern-breakout.pages.dev/api/admin/sync
+      - name: Verify
+        run: |
+          curl --fail-with-body https://ussy-pattern-breakout.pages.dev/api/health
+          curl --fail-with-body 'https://ussy-pattern-breakout.pages.dev/api/opportunities?limit=500&signal_date=2026-09-18'
