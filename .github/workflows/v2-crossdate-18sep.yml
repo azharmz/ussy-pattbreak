@@ -19,7 +19,9 @@ jobs:
         with: {python-version: "3.11"}
       - run: pip install pandas pyarrow boto3
       - name: Install Pattern Breakout runtime
-        run: pip install -e .\n      - name: Freeze exact current READY\n        run: python scripts/freeze_ready.py --output upstream/frozen-ready.json
+        run: pip install -e .
+      - name: Freeze exact current READY
+        run: python scripts/freeze_ready.py --output upstream/frozen-ready.json
       - name: Stage exact 18 Sep morphology checkpoint from R2
         run: |
           python - <<'PY'
