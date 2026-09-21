@@ -4,9 +4,6 @@ on:
     inputs:
       morphology_run_id: {required: true, default: "35428239292"}
       t1_run_id: {required: true, default: "35433809906"}
-  push:
-    branches: [shadow/v2-end-to-end-17sep]
-    paths: [.github/dispatch/v2-e2e-17sep]
 permissions: {contents: read, actions: read}
 jobs:
   shadow:
