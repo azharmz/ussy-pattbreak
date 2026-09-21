@@ -20,3 +20,5 @@ jobs:
           curl --fail-with-body --retry 3 https://ussy-pattern-breakout.pages.dev/api/health
           echo
           curl --fail-with-body --retry 3 'https://ussy-pattern-breakout.pages.dev/api/opportunities?limit=500'
+
+# armed
