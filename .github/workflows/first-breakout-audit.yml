@@ -6,11 +6,6 @@ on:
       morphology_run_id:
         required: true
         default: "35428239292"
-  push:
-    branches:
-      - audit/first-breakout-17sep
-    paths:
-      - .github/dispatch/first-breakout-17sep
 
 permissions:
   contents: read
