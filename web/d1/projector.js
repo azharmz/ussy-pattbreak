@@ -1,6 +1,6 @@
 import {SCHEMA} from "./schema.js";
 export const VERSION="dashboard-projection-v7";
-export const POINTERS={opportunities:"pattern-breakout/production/dashboard-opportunities/current.json",candidates:"pattern-breakout/production/candidates/current.json",t1:"pattern-breakout/production/t1-execution/current.json",lifecycle:"pattern-breakout/production/lifecycle/current.json"};
+export const POINTERS={opportunities:"pattern-breakout/production/dashboard-opportunities/current.json",candidates:"pattern-breakout/production/candidates/current.json",t1:"pattern-breakout/production/t1-execution/current.json",lifecycle:"pattern-breakout/production/lifecycle/current.json",prices:"pattern-breakout/production/dashboard-prices/current.json"};
 const UNIVERSE_POINTER="universe/current.json";
 const norm=x=>String(x||"").replace(/^sha256:/,"");
 const req=(x,k)=>{if(x?.[k]===undefined||x[k]===null||x[k]==="")throw Error("missing "+k);return x[k]};

@@ -10,6 +10,7 @@ FILES={
  "candidates":("breakout-candidate.json","breakout-candidate.jsonl"),
  "t1-execution":("t1-execution.json","t1-execution.jsonl"),
  "dashboard-opportunities":("dashboard-opportunities.json","dashboard-opportunities.jsonl"),
+ "dashboard-prices":("dashboard-prices.json","dashboard-prices.jsonl"),
 }
 
 def client():
