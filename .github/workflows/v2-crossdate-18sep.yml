@@ -1,9 +1,6 @@
 name: Shadow v2 cross-date validation
 on:
   workflow_dispatch:
-  push:
-    branches: [shadow/v2-crossdate-18sep]
-    paths: [.github/dispatch/v2-crossdate-18sep]
 permissions: {contents: read}
 jobs:
   validate:
