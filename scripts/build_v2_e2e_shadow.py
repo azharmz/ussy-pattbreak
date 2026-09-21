@@ -5,8 +5,8 @@ from collections import defaultdict
 
 def main():
  ap=argparse.ArgumentParser(); ap.add_argument("--events",required=True); ap.add_argument("--t1",required=True); ap.add_argument("--output",default="audit/v2-e2e-shadow.json"); a=ap.parse_args()
- ev=json.loads(Path(a.events).read_text()); t1=[json.loads(x) for x in Path(a.t1).read_text().splitlines() if x.strip()]
- events=ev.get("events",ev if isinstance(ev,list) else [])
+ ev=[json.loads(x) for x in Path(a.events).read_text().splitlines() if x.strip()]; t1=[json.loads(x) for x in Path(a.t1).read_text().splitlines() if x.strip()]
+ events=ev
  # event schema preserves contributing assessment ids
  amap={}
  for e in events:
