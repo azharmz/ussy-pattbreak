@@ -1,0 +1,22 @@
+name: One-shot dashboard v11 sync
+on:
+  push:
+    branches: ["dispatch/dashboard-sync-v11-20260921"]
+    paths: [".dispatch/dashboard-sync-v11-20260921"]
+permissions:
+  contents: read
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sync production D1
+        env:
+          DASHBOARD_SYNC_TOKEN: ${{ secrets.DASHBOARD_SYNC_TOKEN }}
+        run: |
+          test -n "$DASHBOARD_SYNC_TOKEN"
+          curl --fail-with-body --retry 3 --retry-delay 2 -X POST -H "Authorization: Bearer ${DASHBOARD_SYNC_TOKEN}" https://ussy-pattern-breakout.pages.dev/api/admin/sync
+      - name: Verify production dashboard
+        run: |
+          curl --fail-with-body --retry 3 https://ussy-pattern-breakout.pages.dev/api/health
+          echo
+          curl --fail-with-body --retry 3 'https://ussy-pattern-breakout.pages.dev/api/opportunities?limit=500'
