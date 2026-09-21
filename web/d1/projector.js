@@ -1,12 +1,15 @@
 import {SCHEMA} from "./schema.js";
 export const VERSION="dashboard-projection-v7";
 export const POINTERS={opportunities:"pattern-breakout/production/dashboard-opportunities/current.json",candidates:"pattern-breakout/production/candidates/current.json",t1:"pattern-breakout/production/t1-execution/current.json",lifecycle:"pattern-breakout/production/lifecycle/current.json",prices:"pattern-breakout/production/dashboard-prices/current.json"};
+export const COMPACT_POINTERS={candidates:POINTERS.candidates,t1:POINTERS.t1,lifecycle:POINTERS.lifecycle,prices:POINTERS.prices};
 const UNIVERSE_POINTER="universe/current.json";
 const norm=x=>String(x||"").replace(/^sha256:/,"");
 const req=(x,k)=>{if(x?.[k]===undefined||x[k]===null||x[k]==="")throw Error("missing "+k);return x[k]};
 const digest=async b=>"sha256:"+[...new Uint8Array(await crypto.subtle.digest("SHA-256",b))].map(x=>x.toString(16).padStart(2,"0")).join("");
 async function object(env,key){const x=await env.R2_BUCKET.get(key);if(!x)throw Error("missing R2 object: "+key);return x}
-export async function readPointers(env){return Object.fromEntries(await Promise.all(Object.entries(POINTERS).map(async([stage,key])=>{const p=await(await object(env,key)).json();["jsonl_key","metadata_key","source_hash","as_of_date"].forEach(k=>req(p,k));return[stage,p]})))}
+async function readPointerSet(env,pointers){return Object.fromEntries(await Promise.all(Object.entries(pointers).map(async([stage,key])=>{const p=await(await object(env,key)).json();["jsonl_key","metadata_key","source_hash","as_of_date"].forEach(k=>req(p,k));return[stage,p]})))}
+export async function readPointers(env){return readPointerSet(env,POINTERS)}
+export async function readCompactPointers(env){return readPointerSet(env,COMPACT_POINTERS)}
 export const servingSignature=(p,u)=>JSON.stringify([VERSION,...Object.keys(POINTERS).map(k=>[p[k].source_hash,p[k].as_of_date]),["universe",u.snapshot_date,u.membership_key]]);
 async function load(env,p){const[d,m]=await Promise.all([object(env,p.jsonl_key),object(env,p.metadata_key)]),stored=await d.arrayBuffer(),meta=await m.json();let bytes=stored;if(p.representation==="ndjson+gzip"){const sh=await digest(stored);if(norm(sh)!==norm(p.stored_hash)||norm(sh)!==norm(meta.storage?.stored_sha256))throw Error("checkpoint stored checksum mismatch");bytes=await new Response(new Blob([stored]).stream().pipeThrough(new DecompressionStream("gzip"))).arrayBuffer();if(bytes.byteLength!==p.logical_bytes||bytes.byteLength!==meta.storage?.logical_bytes)throw Error("checkpoint logical size mismatch")}else if(p.representation&&p.representation!=="ndjson")throw Error("unsupported checkpoint representation");const actual=await digest(bytes);if(norm(actual)!==norm(p.source_hash)||norm(actual)!==norm(meta.source_hash)||(meta.storage?.logical_sha256&&norm(actual)!==norm(meta.storage.logical_sha256)))throw Error("checkpoint checksum mismatch");return{pointer:p,meta,hash:actual,rows:new TextDecoder().decode(bytes).split(/\r?\n/).filter(Boolean).map(JSON.parse)}}
 async function readUniversePointer(env){const p=await(await object(env,UNIVERSE_POINTER)).json();req(p,"snapshot_date");req(p,"membership_key");return p}
