@@ -3,7 +3,7 @@ from __future__ import annotations
 import gzip, hashlib, json
 from datetime import datetime, timezone
 
-ALLOWED_STAGES={"morphology","candidates","t1-execution","dashboard-opportunities"}
+ALLOWED_STAGES={"morphology","candidates","t1-execution","dashboard-opportunities","dashboard-prices"}
 MORPHOLOGY_REPRESENTATION="ndjson+gzip"
 MORPHOLOGY_COMPRESSION_LEVEL=6
 MORPHOLOGY_RETENTION_DATES=2
