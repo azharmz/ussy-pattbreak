@@ -1,11 +1,6 @@
 name: Audit first breakout
 
 on:
-  push:
-    branches:
-      - audit/survivor-identity-17sep
-    paths:
-      - .github/dispatch/survivor-identity-17sep
   workflow_dispatch:
     inputs:
       morphology_run_id:
