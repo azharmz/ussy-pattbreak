@@ -25,6 +25,6 @@ def main():
   es=list(byid.values()); fills={(e["fill_date"],e["fill_price"]) for e in es}
   if len(fills)!=1: raise ValueError(f"economic fill disagreement for {sid}")
   d,p=next(iter(fills)); positions.append({"security_id":sid,"execution_id":f"shadow-execution:{sid}:{d}","position_id":f"shadow-position:{sid}:{d}","entry_date":d,"entry_price":p,"supporting_events":sorted(es,key=lambda z:z["pivot_level"])})
- summary={"event_count":len(events),"mapped_assessment_ids":len(amap),"executed_event_count":sum(len(x["supporting_events"]) for x in positions),"economic_position_count":len(positions),"multi_event_positions":sum(len(x["supporting_events"])>1 for x in positions),"unmatched_executed_assessments":unmatched}
+ summary={"event_count":len(events),"mapped_assessment_ids":len(amap),"executed_event_count":sum(len(x["supporting_events"]) for x in positions),"economic_position_count":len(positions),"multi_event_positions":sum(len(x["supporting_events"])>1 for x in positions),"unmatched_executed_assessments":unmatched,"executed_assessments_removed_by_v2":unmatched}
  out=Path(a.output);out.parent.mkdir(parents=True,exist_ok=True);out.write_text(json.dumps({"schema":"breakout-v2-e2e-shadow-v1","summary":summary,"positions":positions},indent=2,sort_keys=True)+chr(10));print(json.dumps(summary,sort_keys=True))
 if __name__=="__main__":main()
