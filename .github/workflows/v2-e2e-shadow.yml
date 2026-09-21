@@ -35,10 +35,12 @@ jobs:
           path: t1
           run-id: ${{ env.T1_RUN_ID }}
           github-token: ${{ github.token }}
-      - run: python scripts/build_breakout_events_v2_shadow.py --input morphology/raw-oneil-morphology.jsonl --frozen-ready morphology/frozen-ready.json --output audit/breakout-events-v2.jsonl --summary audit/breakout-events-v2-summary.json
-      - run: python scripts/build_v2_e2e_shadow.py --events audit/breakout-events-v2.jsonl --t1 t1/t1-execution.jsonl
+      - run: python scripts/build_breakout_events_v2_shadow.py --input-dir morphology --output-dir shadow
+      - run: python scripts/build_v2_e2e_shadow.py --events shadow/breakout-events-v2.jsonl --t1 t1/t1-execution.jsonl
       - uses: actions/upload-artifact@v4
         with:
           name: v2-e2e-shadow-${{ github.run_id }}
-          path: audit/
+          path: |
+            audit/
+            shadow/
           retention-days: 7
