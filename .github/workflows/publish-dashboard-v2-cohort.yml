@@ -1,9 +1,6 @@
 name: Publish validated dashboard v2 cohort
 on:
   workflow_dispatch:
-  push:
-    branches: [fix/dashboard-v2-data-cutover]
-    paths: [.github/dispatch/publish-dashboard-v2-17]
 permissions: {contents: read, actions: read}
 jobs:
   publish:
