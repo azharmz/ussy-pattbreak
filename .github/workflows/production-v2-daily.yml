@@ -56,8 +56,11 @@ jobs:
           from pathlib import Path
           m=json.load(open("upstream/raw-oneil-morphology.json"))
           frozen=m["upstream_frozen_ready"]
-          key=frozen.get("parquet_key") or (frozen.get("ready") or {}).get("parquet_key")
-          if not key: raise ValueError("missing frozen READY parquet_key")
+          fr=json.load(open("upstream/frozen-ready.json"))
+          if fr.get("source_hash")!=frozen.get("source_hash") or (fr.get("ready") or {}).get("as_of_date")!=frozen.get("as_of_date"):
+              raise ValueError("frozen READY lineage mismatch")
+          key=(fr.get("ready") or {}).get("parquet_key")
+          if not key: raise ValueError("missing exact frozen READY parquet_key")
           s=boto3.client("s3",endpoint_url=os.environ["R2_ENDPOINT"],aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],region_name="auto")
           Path("upstream/ready.parquet").write_bytes(s.get_object(Bucket=os.environ["R2_BUCKET_NAME"],Key=key)["Body"].read())
           PY
