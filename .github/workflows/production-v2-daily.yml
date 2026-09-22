@@ -1,0 +1,92 @@
+name: Production dashboard v2 daily
+on:
+  workflow_dispatch:
+    inputs:
+      signals_run_id:
+        description: Successful Daily Pattern Breakout signals run ID
+        required: true
+        default: ""
+permissions: {contents: read, actions: read}
+concurrency:
+  group: pattern-breakout-production-v2
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+      SIGNALS_RUN_ID: ${{ inputs.signals_run_id }}
+      DASHBOARD_SYNC_TOKEN: ${{ secrets.DASHBOARD_SYNC_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: pip install -e . pandas pyarrow boto3
+      - name: Download exact daily signal artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: daily-pattern-signals-${{ env.SIGNALS_RUN_ID }}
+          path: upstream
+          run-id: ${{ env.SIGNALS_RUN_ID }}
+          github-token: ${{ github.token }}
+      - name: Restore exact immutable morphology JSONL
+        run: |
+          python - <<'PY'
+          import boto3,gzip,json,os
+          m=json.load(open("upstream/raw-oneil-morphology.json"))
+          day=m.get("as_of_date") or m["upstream_frozen_ready"]["ready"]["as_of_date"]
+          h=m["morphology"]["jsonl_sha256"]
+          s=boto3.client("s3",endpoint_url=os.environ["R2_ENDPOINT"],aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],region_name="auto")
+          p=f"pattern-breakout/production/morphology/runs/{day}/{h}.storage-v2.json"
+          meta=json.loads(s.get_object(Bucket=os.environ["R2_BUCKET_NAME"],Key=p)["Body"].read())
+          b=s.get_object(Bucket=os.environ["R2_BUCKET_NAME"],Key=meta["jsonl_key"])["Body"].read()
+          raw=gzip.decompress(b) if meta.get("representation")=="ndjson+gzip" else b
+          open("upstream/raw-oneil-morphology.jsonl","wb").write(raw)
+          PY
+      - name: Build and publish breakout events
+        run: |
+          python scripts/build_breakout_events_v2_shadow.py --input-dir upstream --output-dir checkpoints
+          python scripts/publish_v2_checkpoint.py --stage breakout-events-v2 --dir checkpoints
+      - name: Project signal date into additive history
+        run: |
+          SIGNAL_DATE=$(python -c 'import json;print(json.load(open("checkpoints/breakout-events-v2.json"))["signal_date"])')
+          curl --fail-with-body --retry 3 --retry-delay 2 -X POST -H "Authorization: Bearer $DASHBOARD_SYNC_TOKEN" "https://ussy-pattern-breakout.pages.dev/api/admin/sync-history?signal_date=$SIGNAL_DATE"
+      - name: Build T+1 only when READY has advanced
+        id: t1
+        run: |
+          python - <<'PY'
+          import boto3,json,os,sys
+          s=boto3.client("s3",endpoint_url=os.environ["R2_ENDPOINT"],aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],region_name="auto")
+          b=os.environ["R2_BUCKET_NAME"]
+          sig=json.load(open("checkpoints/breakout-events-v2.json"))["signal_date"]
+          cur=json.loads(s.get_object(Bucket=b,Key="production/ready/current.json")["Body"].read())["as_of_date"]
+          print(f"signal_date={sig} ready_as_of={cur}")
+          open(os.environ["GITHUB_OUTPUT"],"a").write(f"ready={'true' if cur>sig else 'false'}\n")
+          PY
+      - name: Build, validate and publish T+1 lifecycle
+        if: steps.t1.outputs.ready == 'true'
+        run: |
+          python scripts/build_t1_event_execution_v2.py --input-dir checkpoints --output-dir checkpoints
+          python scripts/build_security_execution_v2.py --input-dir checkpoints --output-dir checkpoints
+          python - <<'PY'
+          import json
+          e=json.load(open("checkpoints/breakout-events-v2.json"))
+          t=json.load(open("checkpoints/t1-event-execution-v2.json"))
+          x=json.load(open("checkpoints/security-execution-v2.json"))
+          l=json.load(open("checkpoints/lifecycle-v2.json"))
+          d=e["signal_date"]
+          assert t["signal_date"]==x["signal_date"]==l["signal_date"]==d
+          assert t["upstream_event_hash"]==e["source_hash"]
+          assert x["upstream_t1_event_hash"]==t["source_hash"]
+          assert l["upstream_security_execution_hash"]==x["source_hash"]
+          assert t["summary"]["event_count"]==e["summary"]["event_count"]
+          PY
+          for s in t1-event-execution-v2 security-execution-v2 lifecycle-v2; do python scripts/publish_v2_checkpoint.py --stage "$s" --dir checkpoints; done
+          SIGNAL_DATE=$(python -c 'import json;print(json.load(open("checkpoints/breakout-events-v2.json"))["signal_date"])')
+          python scripts/promote_dashboard_v2_current.py --signal-date "$SIGNAL_DATE"
+          curl --fail-with-body --retry 3 --retry-delay 2 -X POST -H "Authorization: Bearer $DASHBOARD_SYNC_TOKEN" https://ussy-pattern-breakout.pages.dev/api/admin/sync
+          curl --fail-with-body --retry 3 https://ussy-pattern-breakout.pages.dev/api/health
