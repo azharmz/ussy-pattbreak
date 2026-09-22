@@ -6,6 +6,9 @@ on:
         description: Successful Daily Pattern Breakout signals run ID
         required: true
         default: ""
+  push:
+    branches: [ops/run-production-v2-21b]
+    paths: [.github/dispatch/run-production-v2-21b]
 permissions: {contents: read, actions: read}
 concurrency:
   group: pattern-breakout-production-v2
@@ -19,7 +22,7 @@ jobs:
       R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
       R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
       R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
-      SIGNALS_RUN_ID: ${{ inputs.signals_run_id }}
+      SIGNALS_RUN_ID: ${{ inputs.signals_run_id || '35685769349' }}
       DASHBOARD_SYNC_TOKEN: ${{ secrets.DASHBOARD_SYNC_TOKEN }}
     steps:
       - uses: actions/checkout@v4
