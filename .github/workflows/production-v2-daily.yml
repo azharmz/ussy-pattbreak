@@ -6,9 +6,6 @@ on:
         description: Successful Daily Pattern Breakout signals run ID
         required: true
         default: ""
-  push:
-    branches: [ops/run-production-v2-21b]
-    paths: [.github/dispatch/run-production-v2-21b]
 permissions: {contents: read, actions: read}
 concurrency:
   group: pattern-breakout-production-v2
