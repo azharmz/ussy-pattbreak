@@ -85,6 +85,10 @@ jobs:
         run: |
           SIGNAL_DATE=$(python -c 'import json;print(json.load(open("checkpoints/breakout-events-v2.json"))["signal_date"])')
           curl --fail-with-body --retry 3 --retry-delay 2 -X POST -H "Authorization: Bearer $DASHBOARD_SYNC_TOKEN" "https://ussy-pattern-breakout.pages.dev/api/admin/sync-history?signal_date=$SIGNAL_DATE"
+      - name: Refresh research-only Opportunity cohort registry
+        run: |
+          SIGNAL_DATE=$(python -c 'import json;print(json.load(open("checkpoints/breakout-events-v2.json"))["signal_date"])')
+          python scripts/refresh_opportunity_research_registry.py --observation-asof "$SIGNAL_DATE" --horizon-days 5
       - name: Build T+1 only when READY has advanced
         id: t1
         run: |
