@@ -1,9 +1,6 @@
 name: Validate v2 events and T1
 on:
   workflow_dispatch:
-  push:
-    branches: [impl/v2-events-t1]
-    paths: [.github/dispatch/validate-v2-events-t1]
 permissions: {contents: read}
 jobs:
   test:
