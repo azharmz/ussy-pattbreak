@@ -34,7 +34,9 @@ jobs:
         run: |
           npm run web:build
           node --check web/_worker.js
-          node --check web/d1/projector.js
+          node --check web/d1/runtime.js
+          node --check web/d1/history.js
+          node --check web/d1/compact.js
           node --check web/public/app.js
           npm run web:test
           git diff --exit-code -- web/public/_worker.js web/public/d1
