@@ -1,0 +1,11 @@
+name: Opportunity audit read only
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo audit-placeholder
