@@ -48,6 +48,11 @@ jobs:
           raw=gzip.decompress(b)
           open("upstream/raw-oneil-morphology.jsonl","wb").write(raw)
           PY
+      - name: Build and publish current opportunities
+        run: |
+          python scripts/build_dashboard_opportunity_snapshot.py --ready-parquet upstream/ready.parquet
+          python scripts/publish_durable_checkpoint.py --stage dashboard-opportunities
+          python scripts/publish_durable_checkpoint.py --stage dashboard-prices
       - name: Build and publish breakout events
         run: |
           python scripts/build_breakout_events_v2_shadow.py --input-dir upstream --output-dir checkpoints
