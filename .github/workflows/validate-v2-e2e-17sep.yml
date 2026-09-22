@@ -1,0 +1,62 @@
+name: Validate implemented v2 E2E 17 Sep
+on:
+  workflow_dispatch:
+  push:
+    branches: [validate/v2-e2e-17sep]
+    paths: [.github/dispatch/v2-e2e-17sep-impl]
+permissions: {contents: read, actions: read}
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+      MORPHOLOGY_RUN_ID: "35428239292"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: pip install -e . pandas pyarrow boto3
+      - uses: actions/download-artifact@v4
+        with:
+          name: raw-oneil-morphology-${{ env.MORPHOLOGY_RUN_ID }}
+          path: upstream
+          run-id: ${{ env.MORPHOLOGY_RUN_ID }}
+          github-token: ${{ github.token }}
+      - name: Build implemented v2 events
+        run: python scripts/build_breakout_events_v2_shadow.py --input-dir upstream --output-dir checkpoints
+      - name: Build event-scoped T1
+        run: python scripts/build_t1_event_execution_v2.py --input-dir checkpoints --output-dir checkpoints
+      - name: Build security executions and economic positions
+        run: python scripts/build_security_execution_v2.py --input-dir checkpoints --output-dir checkpoints
+      - name: Assert frozen 17 Sep reconciliation
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("checkpoints")
+          e=json.loads((p/"breakout-events-v2.json").read_text())
+          t=json.loads((p/"t1-event-execution-v2.json").read_text())
+          x=json.loads((p/"security-execution-v2.json").read_text())
+          l=json.loads((p/"lifecycle-v2.json").read_text())
+          assert e["summary"]["v1_assessment_hits"]==426
+          assert e["summary"]["first_qualifying_assessments"]==293
+          assert e["summary"]["recycled_assessments"]==133
+          assert e["summary"]["event_count"]==48
+          assert t["summary"]["event_count"]==48
+          assert t["summary"]["state_counts"]["EXECUTED_T1_OPEN"]==27
+          assert x["summary"]["execution_count"]==20
+          assert l["summary"]["position_count"]==20
+          rows=[json.loads(z) for z in (p/"lifecycle-v2.jsonl").read_text().splitlines()]
+          assert len({r["position_id"] for r in rows})==20
+          assert len({(r["security_id"],r["entry_date"],r["entry_price"]) for r in rows})==20
+          print(json.dumps({"events":48,"executed_events":27,"economic_executions":20,"positions":20,"duplicate_positions":0},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: implemented-v2-e2e-17sep-${{ github.run_id }}
+          path: checkpoints/
+          retention-days: 7
