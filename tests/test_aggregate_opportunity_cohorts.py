@@ -1,4 +1,10 @@
-from scripts.aggregate_opportunity_cohorts import aggregate
+import importlib.util
+from pathlib import Path
+
+P=Path(__file__).resolve().parents[1]/"scripts"/"aggregate_opportunity_cohorts.py"
+S=importlib.util.spec_from_file_location("aggregate_opportunity_cohorts",P)
+M=importlib.util.module_from_spec(S); S.loader.exec_module(M)
+aggregate=M.aggregate
 
 def cohort(day, eligible=10, hits=2):
     return {"cohorts":{day:{"bands":{"1":{"eligible":eligible,"later_breakout":hits}}}}}
