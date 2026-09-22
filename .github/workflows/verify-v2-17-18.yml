@@ -52,11 +52,13 @@ jobs:
           python - <<'PY'
           import boto3,gzip,json,os
           meta=json.load(open("upstream/raw-oneil-morphology.json"))
-          key=meta["morphology"].get("jsonl_key") or meta["morphology"].get("r2_key")
-          if not key: raise SystemExit("missing immutable morphology key")
+          key="pattern-breakout/production/morphology/runs/2026-09-18/6d943477192399dc27fcc979f95c09ecf02dcd318518104c5b13cfb65fea7fad.jsonl.gz"
+          expected=meta["morphology"]["jsonl_sha256"]
           s=boto3.client("s3",endpoint_url=os.environ["R2_ENDPOINT"],aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],region_name="auto")
           raw=s.get_object(Bucket=os.environ["R2_BUCKET_NAME"],Key=key)["Body"].read()
           if key.endswith(".gz"): raw=gzip.decompress(raw)
+          import hashlib
+          if hashlib.sha256(raw).hexdigest()!=expected: raise SystemExit("immutable 18 Sep morphology hash mismatch")
           open("upstream/raw-oneil-morphology.jsonl","wb").write(raw)
           PY
       - run: python scripts/build_breakout_events_v2_shadow.py --input-dir upstream --output-dir checkpoints
