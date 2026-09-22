@@ -1,5 +1,5 @@
 import {SCHEMA} from "./schema.js";
-export const VERSION="dashboard-projection-v14-opportunities";
+export const VERSION="dashboard-projection-v15-r2-opportunities";
 const CURRENT="pattern-breakout/production/dashboard-v2/current.json",PRICE="pattern-breakout/production/dashboard-prices/current.json",OPPORTUNITIES="pattern-breakout/production/dashboard-opportunities/current.json";
 const req=(x,k)=>{if(x?.[k]===undefined||x[k]===null||x[k]==="")throw Error("missing "+k);return x[k]};
 async function object(env,key){const x=await env.R2_BUCKET.get(key);if(!x)throw Error("missing R2 object: "+key);return x}
