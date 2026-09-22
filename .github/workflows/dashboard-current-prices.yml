@@ -1,6 +1,9 @@
 name: Publish dashboard current prices
 on:
   workflow_dispatch:
+  push:
+    branches: [ops/sync-dashboard-v2]
+    paths: [.github/dispatch/sync-dashboard-v2]
 permissions:
   contents: read
 jobs:
