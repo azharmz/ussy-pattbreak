@@ -11,21 +11,23 @@ evolution. A breakout event is the separate economic identity
 `(security_id, signal_date, exact pivot_level)`. T+1 execution and a position
 are downstream economic records; none may be inferred from an assessment.
 
-The 2026-09-21 dashboard-opportunities snapshot contains **56,441 assessment
-evidence rows**. Its only safe serving cardinality is therefore 56,441 R2
-records, keyed by `assessment_id`. It must not be deduplicated by security,
-base, lineage, or pivot: each changes what the record means. Exact
-base/lineage/pivot group counts are audit outputs from the immutable snapshot,
-not serving keys and not an eligibility rule.
+The immutable 2026-09-21 morphology cohort contains 934,480 morphology records
+and 86,817 recognized assessments. The corresponding dashboard evidence
+snapshot contains 86,417 records (source hash
+`sha256:fa81ede093ab8f7a4c83cbb12003c70bc365f2d0bc4e00f9f695111e85b4dd48`).
+These evidence records are keyed by `assessment_id` and must not be arbitrarily
+deduplicated by security, base, lineage, or pivot: each changes what the record
+means. Exact base/lineage/pivot group counts are audit outputs from the
+immutable snapshot, not serving keys and not an eligibility rule.
 
 ## Storage and write budget
 
-R2 stores the immutable 56,441-row evidence snapshot and its small metadata
-and current-pointer objects. D1 stores **zero** `current_opportunities` rows
+R2 stores the immutable evidence snapshot and its small metadata and
+current-pointer objects. D1 stores **zero** `current_opportunities` rows
 until a separately approved opportunity eligibility contract exists. A current
 projection therefore has zero opportunity-row writes after the one-time purge
 and only writes the small breakout-event and position projections. This avoids
-the prior 56,441-row D1 write/storage amplification on every refresh.
+the prior 56,441-row D1 projection write/storage amplification on every refresh.
 
 `opportunity_candidates_r2` is an observability count only, not an Opportunity
 count, and D1 remains disposable and rebuildable from R2.
