@@ -1,9 +1,6 @@
 name: Verify frozen v2 baselines 17-18 Sep
 on:
   workflow_dispatch:
-  push:
-    branches: [audit/freeze-17-18-baselines]
-    paths: [.github/dispatch/verify-v2-17-18]
 permissions: {contents: read, actions: read}
 jobs:
   verify:
