@@ -26,6 +26,15 @@ jobs:
           path: upstream18
           run-id: 35588989249
           github-token: ${{ github.token }}
+      - name: Restore immutable 18 Sep morphology JSONL from R2
+        run: |
+          python - <<'PY'
+          import boto3,gzip,os
+          s=boto3.client("s3",endpoint_url=os.environ["R2_ENDPOINT"],aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],region_name="auto")
+          k="pattern-breakout/production/morphology/runs/2026-09-18/6d943477192399dc27fcc979f95c09ecf02dcd318518104c5b13cfb65fea7fad.jsonl.gz"
+          b=s.get_object(Bucket=os.environ["R2_BUCKET_NAME"],Key=k)["Body"].read()
+          open("upstream18/raw-oneil-morphology.jsonl","wb").write(gzip.decompress(b))
+          PY
       - name: Build and publish full 18 Sep cohort
         run: |
           python scripts/build_breakout_events_v2_shadow.py --input-dir upstream18 --output-dir cp18
@@ -47,6 +56,15 @@ jobs:
           path: upstream21
           run-id: 35685769349
           github-token: ${{ github.token }}
+      - name: Restore immutable 21 Sep morphology JSONL from R2
+        run: |
+          python - <<'PY'
+          import boto3,gzip,os
+          s=boto3.client("s3",endpoint_url=os.environ["R2_ENDPOINT"],aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],region_name="auto")
+          k="pattern-breakout/production/morphology/runs/2026-09-21/85b5b4db89e8d2b85e09b23a3641d61efd6d862ab56e4a264c3d520660927a80.jsonl.gz"
+          b=s.get_object(Bucket=os.environ["R2_BUCKET_NAME"],Key=k)["Body"].read()
+          open("upstream21/raw-oneil-morphology.jsonl","wb").write(gzip.decompress(b))
+          PY
       - name: Publish 21 Sep breakout-event checkpoint only
         run: |
           python scripts/build_breakout_events_v2_shadow.py --input-dir upstream21 --output-dir cp21
