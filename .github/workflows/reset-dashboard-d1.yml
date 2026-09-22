@@ -6,12 +6,15 @@ on:
         description: Type RESET_D1 to destroy and rebuild dashboard D1 serving tables
         required: true
         type: string
+  push:
+    branches: [ops/clean-d1-rebuild]
+    paths: [.github/dispatch/clean-d1-rebuild]
 permissions:
   contents: read
   actions: read
 jobs:
   reset:
-    if: ${{ inputs.confirm == 'RESET_D1' }}
+    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.confirm == 'RESET_D1') || (github.event_name == 'push' && github.ref == 'refs/heads/ops/clean-d1-rebuild') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
