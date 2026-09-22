@@ -1,0 +1,38 @@
+name: Verify frozen v2 baselines 17-18 Sep
+on:
+  workflow_dispatch:
+  push:
+    branches: [audit/freeze-17-18-baselines]
+    paths: [.github/dispatch/verify-v2-17-18]
+permissions: {contents: read, actions: read}
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - day: "2026-09-17"
+            morphology_run_id: "35428239292"
+          - day: "2026-09-18"
+            morphology_run_id: "35588989249"
+    env:
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: pip install -e . pandas pyarrow boto3
+      - uses: actions/download-artifact@v4
+        with:
+          name: raw-oneil-morphology-${{ matrix.morphology_run_id }}
+          path: upstream
+          run-id: ${{ matrix.morphology_run_id }}
+          github-token: ${{ github.token }}
+      - run: python scripts/build_breakout_events_v2_shadow.py --input-dir upstream --output-dir checkpoints
+      - name: Report exact frozen result
+        run: cat checkpoints/breakout-events-v2-summary.json
