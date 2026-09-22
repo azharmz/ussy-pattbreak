@@ -18,4 +18,4 @@ def test_conflicting_observed_fill_fails_closed():
  with pytest.raises(ValueError):arbitrate_security_execution([e("a",100,102),e("b",100,103)])
 def test_position_identity_is_not_event_identity():
  x=arbitrate_security_execution([e("a",100),e("b",101)]);p=open_from_security_execution(x)
- assert "a" not in p.position_id and p.execution_id!=p.position_id
+ assert p.position_id.startswith("position_") and p.position_id not in p.supporting_event_ids and p.execution_id!=p.position_id
