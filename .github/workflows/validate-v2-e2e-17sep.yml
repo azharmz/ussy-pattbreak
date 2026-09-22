@@ -1,9 +1,6 @@
 name: Validate implemented v2 E2E 17 Sep
 on:
   workflow_dispatch:
-  push:
-    branches: [validate/v2-e2e-17sep]
-    paths: [.github/dispatch/v2-e2e-17sep-impl]
 permissions: {contents: read, actions: read}
 jobs:
   validate:
