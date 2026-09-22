@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      SIGNALS_RUN_ID: ${{ inputs.signals_run_id || '35685769349' }}
+      SIGNALS_RUN_ID: ${{ github.event.inputs.signals_run_id || '35685769349' }}
       R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
       R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
       R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
@@ -62,6 +62,7 @@ jobs:
         run: python scripts/build_dashboard_opportunity_snapshot.py --ready-parquet upstream/ready.parquet
       - name: Audit structural cardinality
         run: |
+          mkdir -p audit-output
           python scripts/audit_opportunity_contract.py checkpoints/dashboard-opportunities.jsonl --expected-as-of 2026-09-21 --output audit-output/opportunity-contract-audit.json
           python - <<'PY'
           import json
