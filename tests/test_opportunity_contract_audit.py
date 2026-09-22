@@ -1,6 +1,14 @@
+import importlib.util
+from pathlib import Path
+
 import pytest
 
-from scripts.audit_opportunity_contract import audit
+MODULE_PATH = Path(__file__).resolve().parents[1] / "scripts" / "audit_opportunity_contract.py"
+SPEC = importlib.util.spec_from_file_location("audit_opportunity_contract", MODULE_PATH)
+MODULE = importlib.util.module_from_spec(SPEC)
+assert SPEC and SPEC.loader
+SPEC.loader.exec_module(MODULE)
+audit = MODULE.audit
 
 
 def row(a, base, lineage, security="1", pattern="FLAT_BASE", pivot=100, close=95):
