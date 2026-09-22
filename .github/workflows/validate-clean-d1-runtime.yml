@@ -1,9 +1,6 @@
 name: Validate clean D1 runtime
 on:
   workflow_dispatch:
-  push:
-    branches: [feat/d1-clean-runtime]
-    paths: [.github/dispatch/validate-clean-d1]
 permissions: {contents: read}
 jobs:
   validate:
