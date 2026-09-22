@@ -68,6 +68,9 @@ jobs:
         run: |
           python scripts/build_dashboard_opportunity_snapshot.py --ready-parquet upstream/ready.parquet
           python scripts/publish_durable_checkpoint.py --stage dashboard-opportunities
+      - name: Persist research-only PIT opportunity cohort
+        run: |
+          python scripts/publish_opportunity_research_cohort.py
       - name: Build and publish breakout events
         run: |
           python scripts/build_breakout_events_v2_shadow.py --input-dir upstream --output-dir checkpoints
