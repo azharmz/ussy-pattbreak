@@ -1,0 +1,68 @@
+name: Acceptance D1 history 18 to 21
+on:
+  workflow_dispatch:
+  push:
+    branches: [ops/acceptance-18-21-history]
+    paths: [.github/dispatch/acceptance-18-21]
+permissions: {contents: read, actions: read}
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+      DASHBOARD_SYNC_TOKEN: ${{ secrets.DASHBOARD_SYNC_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: pip install -e . pandas pyarrow boto3
+      - uses: actions/download-artifact@v4
+        with:
+          name: daily-pattern-signals-35588989249
+          path: upstream18
+          run-id: 35588989249
+          github-token: ${{ github.token }}
+      - name: Build and publish full 18 Sep cohort
+        run: |
+          python scripts/build_breakout_events_v2_shadow.py --input-dir upstream18 --output-dir cp18
+          python scripts/build_t1_event_execution_v2.py --input-dir cp18 --output-dir cp18
+          python scripts/build_security_execution_v2.py --input-dir cp18 --output-dir cp18
+          for s in breakout-events-v2 t1-event-execution-v2 security-execution-v2 lifecycle-v2; do python scripts/publish_v2_checkpoint.py --stage "$s" --dir cp18; done
+          python scripts/promote_dashboard_v2_current.py --signal-date 2026-09-18
+      - name: Rebuild empty D1 current from 18
+        run: |
+          curl --fail-with-body -sS -X POST -H "Authorization: Bearer $DASHBOARD_SYNC_TOKEN" https://ussy-pattern-breakout.pages.dev/api/admin/sync | tee /tmp/sync18.json
+          python - <<'PY'
+          import json
+          x=json.load(open("/tmp/sync18.json"))
+          assert x["status"]=="READY" and x["event_as_of_date"]=="2026-09-18" and x["breakout_events"]==50
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: daily-pattern-signals-35685769349
+          path: upstream21
+          run-id: 35685769349
+          github-token: ${{ github.token }}
+      - name: Publish 21 Sep breakout-event checkpoint only
+        run: |
+          python scripts/build_breakout_events_v2_shadow.py --input-dir upstream21 --output-dir cp21
+          python scripts/publish_v2_checkpoint.py --stage breakout-events-v2 --dir cp21
+      - name: Add 21 Sep to history without faking T+1 completion
+        run: |
+          curl --fail-with-body -sS -X POST -H "Authorization: Bearer $DASHBOARD_SYNC_TOKEN" "https://ussy-pattern-breakout.pages.dev/api/admin/sync-history?signal_date=2026-09-21" | tee /tmp/h21.json
+          curl --fail-with-body -sS "https://ussy-pattern-breakout.pages.dev/api/breakout-events?signal_date=2026-09-18&limit=500" -o /tmp/e18.json
+          curl --fail-with-body -sS "https://ussy-pattern-breakout.pages.dev/api/breakout-events?signal_date=2026-09-21&limit=500" -o /tmp/e21.json
+          curl --fail-with-body -sS https://ussy-pattern-breakout.pages.dev/api/health -o /tmp/health.json
+          python - <<'PY'
+          import json
+          a,b,h,s=map(lambda p:json.load(open(p)),["/tmp/e18.json","/tmp/e21.json","/tmp/health.json","/tmp/h21.json"])
+          assert len(a)==50
+          assert len(b)==s["breakout_events"]
+          assert h["latest_projection"]["event_as_of_date"]=="2026-09-18"
+          assert h["status"]=="READY"
+          print(json.dumps({"current":"2026-09-18","history_18":len(a),"history_21":len(b),"positions":h["latest_projection"]["positions"]},sort_keys=True))
+          PY
