@@ -82,5 +82,10 @@ def main():
     if exp and (summary["v1_assessment_hits"],summary["first_qualifying_assessments"],summary["recycled_assessments"])!=exp:
         raise ValueError(f"frozen baseline reconciliation failed: {summary}")
     (out/"breakout-events-v2-summary.json").write_text(json.dumps(summary,indent=2,sort_keys=True)+"\n")
+    manifest={"stage":"breakout-events-v2","schema_version":"pattern-breakout-event-v2","contract_version":VERSION,
+      "signal_date":summary["as_of_date"],"source_hash":"sha256:"+summary["events_sha256"],
+      "upstream_morphology_hash":"sha256:"+meta["morphology"]["jsonl_sha256"],
+      "upstream_ready_hash":frozen["source_hash"],"summary":summary}
+    (out/"breakout-events-v2.json").write_text(json.dumps(manifest,indent=2,sort_keys=True)+"\n")
     print(json.dumps(summary,sort_keys=True))
 if __name__=="__main__": main()
