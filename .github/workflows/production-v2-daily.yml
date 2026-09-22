@@ -46,8 +46,12 @@ jobs:
           s=boto3.client("s3",endpoint_url=os.environ["R2_ENDPOINT"],aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],region_name="auto")
           p=f"pattern-breakout/production/morphology/runs/{day}/{h}.storage-v2.json"
           meta=json.loads(s.get_object(Bucket=os.environ["R2_BUCKET_NAME"],Key=p)["Body"].read())
-          b=s.get_object(Bucket=os.environ["R2_BUCKET_NAME"],Key=meta["jsonl_key"])["Body"].read()
-          raw=gzip.decompress(b) if meta.get("representation")=="ndjson+gzip" else b
+          storage=meta.get("storage") or {}
+          key=f"pattern-breakout/production/morphology/runs/{day}/{h}.jsonl.gz"
+          b=s.get_object(Bucket=os.environ["R2_BUCKET_NAME"],Key=key)["Body"].read()
+          raw=gzip.decompress(b) if storage.get("representation")=="ndjson+gzip" else b
+          import hashlib
+          if hashlib.sha256(raw).hexdigest()!=h: raise ValueError("restored morphology checksum mismatch")
           open("upstream/raw-oneil-morphology.jsonl","wb").write(raw)
           PY
       - name: Build and publish breakout events
