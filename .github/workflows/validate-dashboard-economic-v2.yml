@@ -1,9 +1,6 @@
 name: Validate dashboard economic v2
 on:
   workflow_dispatch:
-  push:
-    branches: [feat/dashboard-v2-economic]
-    paths: [.github/dispatch/dashboard-v2-economic]
 permissions: {contents: read}
 jobs:
   validate:
