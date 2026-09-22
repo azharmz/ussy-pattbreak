@@ -39,6 +39,13 @@ jobs:
           path: upstream
           run-id: 35685769349
           github-token: ${{ github.token }}
+      - name: Download prior frozen signal artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: daily-pattern-signals-35588989249
+          path: upstream-0918
+          run-id: 35588989249
+          github-token: ${{ github.token }}
       - name: Restore exact immutable morphology and READY
         run: |
           python - <<'PY'
@@ -67,7 +74,42 @@ jobs:
           mkdir -p audit-output
           python scripts/audit_opportunity_contract.py checkpoints/dashboard-opportunities.jsonl --expected-as-of 2026-09-21 --output audit-output/opportunity-contract-audit.json
           cp checkpoints/dashboard-opportunities.json audit-output/evidence-snapshot-metadata.json
+          cp checkpoints/dashboard-opportunities.jsonl audit-output/setup-evidence-2026-09-21.jsonl
           python scripts/research_opportunity_eligibility.py checkpoints/dashboard-opportunities.jsonl --output audit-output/opportunity-eligibility-research.json
+      - name: Build prior exact setup snapshot and historical linkage
+        run: |
+          mkdir -p prior-checkpoints
+          python - <<'PY'
+          import boto3,gzip,hashlib,json,os
+          from pathlib import Path
+          u=Path("upstream-0918"); m=json.loads((u/"raw-oneil-morphology.json").read_text()); f=json.loads((u/"frozen-ready.json").read_text())
+          day=m["upstream_frozen_ready"]["as_of_date"]; h=m["morphology"]["jsonl_sha256"]
+          if day!="2026-09-18": raise ValueError("unexpected prior as-of "+day)
+          s=boto3.client("s3",endpoint_url=os.environ["R2_ENDPOINT"],aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],region_name="auto"); b=os.environ["R2_BUCKET_NAME"]
+          raw=gzip.decompress(s.get_object(Bucket=b,Key="pattern-breakout/production/morphology/runs/"+day+"/"+h+".jsonl.gz")["Body"].read())
+          if hashlib.sha256(raw).hexdigest()!=h: raise ValueError("prior morphology checksum mismatch")
+          (u/"raw-oneil-morphology.jsonl").write_bytes(raw)
+          ready=s.get_object(Bucket=b,Key=f["ready"]["parquet_key"])["Body"].read()
+          if hashlib.sha256(ready).hexdigest()!=f["source_hash"].replace("sha256:",""): raise ValueError("prior READY checksum mismatch")
+          (u/"ready.parquet").write_bytes(ready)
+          PY
+          python scripts/build_dashboard_opportunity_snapshot.py --input-dir upstream-0918 --ready-parquet upstream-0918/ready.parquet --output prior-checkpoints/dashboard-opportunities.jsonl --price-output prior-checkpoints/dashboard-prices.jsonl
+          cp prior-checkpoints/dashboard-opportunities.jsonl audit-output/setup-evidence-2026-09-18.jsonl
+          python - <<'PY'
+          import boto3,json,os
+          from pathlib import Path
+          s=boto3.client("s3",endpoint_url=os.environ["R2_ENDPOINT"],aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],region_name="auto"); b=os.environ["R2_BUCKET_NAME"]
+          rows=[]
+          for day in ("2026-09-18","2026-09-21"):
+           try:
+            idx=json.loads(s.get_object(Bucket=b,Key="pattern-breakout/production/breakout-events-v2/by-signal-date/"+day+".json")["Body"].read())
+           except s.exceptions.NoSuchKey: continue
+           raw=s.get_object(Bucket=b,Key=idx["jsonl_key"])["Body"].read().decode()
+           rows.extend(json.loads(x) for x in raw.splitlines() if x)
+          Path("audit-output/historical-breakout-events.jsonl").write_text("".join(json.dumps(x,sort_keys=True,separators=(",",":"))+"\n" for x in rows))
+          print("historical_event_rows",len(rows))
+          PY
+          python scripts/research_opportunity_breakout_linkage.py --snapshot audit-output/setup-evidence-2026-09-18.jsonl --events audit-output/historical-breakout-events.jsonl --output audit-output/opportunity-breakout-linkage.json
       - name: Summary
         run: |
           python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
