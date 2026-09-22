@@ -48,6 +48,18 @@ jobs:
           raw=gzip.decompress(b)
           open("upstream/raw-oneil-morphology.jsonl","wb").write(raw)
           PY
+      - name: Restore exact READY parquet for opportunities
+        run: |
+          python - <<'PY'
+          import boto3,json,os
+          from pathlib import Path
+          m=json.load(open("upstream/raw-oneil-morphology.json"))
+          frozen=m["upstream_frozen_ready"]
+          key=frozen.get("parquet_key") or (frozen.get("ready") or {}).get("parquet_key")
+          if not key: raise ValueError("missing frozen READY parquet_key")
+          s=boto3.client("s3",endpoint_url=os.environ["R2_ENDPOINT"],aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],region_name="auto")
+          Path("upstream/ready.parquet").write_bytes(s.get_object(Bucket=os.environ["R2_BUCKET_NAME"],Key=key)["Body"].read())
+          PY
       - name: Build and publish current opportunities
         run: |
           python scripts/build_dashboard_opportunity_snapshot.py --ready-parquet upstream/ready.parquet
