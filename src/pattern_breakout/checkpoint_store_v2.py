@@ -1,7 +1,7 @@
 """Durable, isolated v2 checkpoint namespaces. Never writes v1 pointers."""
 import hashlib,json
 from datetime import datetime,timezone
-PREFIXES={"breakout-events-v2":"pattern-breakout/production/breakout-events-v2","t1-event-execution-v2":"pattern-breakout/production/t1-event-execution-v2"}
+PREFIXES={"breakout-events-v2":"pattern-breakout/production/breakout-events-v2","t1-event-execution-v2":"pattern-breakout/production/t1-event-execution-v2","security-execution-v2":"pattern-breakout/production/security-execution-v2","lifecycle-v2":"pattern-breakout/production/lifecycle-v2"}
 def publish_v2(s3,bucket,*,stage,signal_date,metadata,jsonl):
  if stage not in PREFIXES:raise ValueError("unsupported v2 stage")
  d=hashlib.sha256(jsonl).hexdigest()
