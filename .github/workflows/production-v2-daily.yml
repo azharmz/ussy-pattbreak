@@ -1,3 +1,4 @@
+# one-shot acceptance trigger: opportunity-v14-20260922
 name: Production dashboard v2 daily
 on:
   workflow_dispatch:
