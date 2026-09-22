@@ -27,12 +27,38 @@ jobs:
       - uses: actions/setup-python@v5
         with: {python-version: "3.11"}
       - run: pip install -e . pandas pyarrow boto3
-      - uses: actions/download-artifact@v4
+      - name: Download frozen 17 Sep morphology artifact
+        if: matrix.day == '2026-09-17'
+        uses: actions/download-artifact@v4
         with:
           name: raw-oneil-morphology-${{ matrix.morphology_run_id }}
           path: upstream
           run-id: ${{ matrix.morphology_run_id }}
           github-token: ${{ github.token }}
+      - name: Download exact 18 Sep daily metadata
+        if: matrix.day == '2026-09-18'
+        uses: actions/download-artifact@v4
+        with:
+          name: daily-pattern-signals-${{ matrix.morphology_run_id }}
+          path: staged
+          run-id: ${{ matrix.morphology_run_id }}
+          github-token: ${{ github.token }}
+      - name: Restore immutable 18 Sep morphology body from R2
+        if: matrix.day == '2026-09-18'
+        run: |
+          mkdir -p upstream
+          cp staged/frozen-ready.json upstream/
+          cp staged/raw-oneil-morphology.json upstream/
+          python - <<'PY'
+          import boto3,gzip,json,os
+          meta=json.load(open("upstream/raw-oneil-morphology.json"))
+          key=meta["morphology"].get("jsonl_key") or meta["morphology"].get("r2_key")
+          if not key: raise SystemExit("missing immutable morphology key")
+          s=boto3.client("s3",endpoint_url=os.environ["R2_ENDPOINT"],aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],region_name="auto")
+          raw=s.get_object(Bucket=os.environ["R2_BUCKET_NAME"],Key=key)["Body"].read()
+          if key.endswith(".gz"): raw=gzip.decompress(raw)
+          open("upstream/raw-oneil-morphology.jsonl","wb").write(raw)
+          PY
       - run: python scripts/build_breakout_events_v2_shadow.py --input-dir upstream --output-dir checkpoints
       - name: Report exact frozen result
         run: cat checkpoints/breakout-events-v2-summary.json
