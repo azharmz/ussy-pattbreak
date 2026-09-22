@@ -1,11 +1,97 @@
-name: Opportunity audit read only
+name: Opportunity empirical audit read only
+
 on:
   workflow_dispatch:
+    inputs:
+      signals_run_id:
+        description: Exact successful Daily Pattern Breakout signals run ID
+        required: true
+        default: "35685769349"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/opportunity-audit-readonly.yml"
+
 permissions:
   contents: read
   actions: read
+
 jobs:
   audit:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SIGNALS_RUN_ID: ${{ inputs.signals_run_id || '35685769349' }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
     steps:
-      - run: echo audit-placeholder
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: python -m pip install -e . boto3 pyarrow
+      - name: Download exact frozen signal artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: daily-pattern-signals-${{ env.SIGNALS_RUN_ID }}
+          path: upstream
+          run-id: ${{ env.SIGNALS_RUN_ID }}
+          github-token: ${{ github.token }}
+      - name: Restore exact immutable morphology and READY
+        run: |
+          python - <<'PY'
+          import boto3,gzip,hashlib,json,os
+          from pathlib import Path
+          u=Path("upstream")
+          m=json.loads((u/"raw-oneil-morphology.json").read_text())
+          f=json.loads((u/"frozen-ready.json").read_text())
+          day=m["upstream_frozen_ready"]["as_of_date"]; h=m["morphology"]["jsonl_sha256"]
+          if day!="2026-09-21": raise ValueError(f"unexpected as-of {day}")
+          if f["source_hash"]!=m["upstream_frozen_ready"]["source_hash"]: raise ValueError("READY lineage mismatch")
+          s=boto3.client("s3",endpoint_url=os.environ["R2_ENDPOINT"],aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],region_name="auto")
+          b=os.environ["R2_BUCKET_NAME"]
+          raw=gzip.decompress(s.get_object(Bucket=b,Key=f"pattern-breakout/production/morphology/runs/{day}/{h}.jsonl.gz")["Body"].read())
+          if hashlib.sha256(raw).hexdigest()!=h: raise ValueError("morphology checksum mismatch")
+          (u/"raw-oneil-morphology.jsonl").write_bytes(raw)
+          ready=s.get_object(Bucket=b,Key=f["ready"]["parquet_key"])["Body"].read()
+          if hashlib.sha256(ready).hexdigest()!=f["source_hash"].removeprefix("sha256:"): raise ValueError("READY checksum mismatch")
+          (u/"ready.parquet").write_bytes(ready)
+          PY
+      - name: Build exact evidence snapshot
+        run: python scripts/build_dashboard_opportunity_snapshot.py --ready-parquet upstream/ready.parquet
+      - name: Audit structural cardinality
+        run: |
+          python scripts/audit_opportunity_contract.py checkpoints/dashboard-opportunities.jsonl --expected-as-of 2026-09-21 --output audit-output/opportunity-contract-audit.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("audit-output/opportunity-contract-audit.json"); x=json.loads(p.read_text())
+          x["lineage"]={"signals_run_id":35685769349,"as_of_date":"2026-09-21","morphology_sha256":"85b5b4db89e8d2b85e09b23a3641d61efd6d862ab56e4a264c3d520660927a80"}
+          p.write_text(json.dumps(x,indent=2,sort_keys=True)+"\n")
+          c=x["cardinality"]; i=x["identity_checks"]; q=x["impact"]
+          md=f"""# Opportunity empirical audit — 2026-09-21
+
+Read-only evidence audit. No Opportunity eligibility threshold or lifecycle rule is introduced.
+
+- assessment evidence rows: {c['assessment_rows']:,}
+- below-pivot assessments: {c['below_pivot_assessments']:,}
+- base IDs: {c['base_ids']:,}
+- setup keys: {c['setup_keys']:,}
+- lineage IDs: {c['lineage_ids']:,}
+- securities: {c['securities']:,}
+- base IDs spanning security/pivot: {i['base_ids_spanning_security_or_pivot']:,}
+- lineage IDs spanning security/pivot: {i['lineage_ids_spanning_security_or_pivot']:,}
+- full assessment rows / base projection write amplification: {q['full_refresh_write_amplification_vs_base']}
+"""
+          Path("audit-output/opportunity-contract-audit.md").write_text(md)
+          print(md)
+          PY
+      - name: Summary
+        run: cat audit-output/opportunity-contract-audit.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: opportunity-empirical-audit-2026-09-21
+          path: audit-output/
+          if-no-files-found: error
+          retention-days: 30
