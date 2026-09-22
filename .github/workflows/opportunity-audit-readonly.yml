@@ -67,6 +67,7 @@ jobs:
           mkdir -p audit-output
           python scripts/audit_opportunity_contract.py checkpoints/dashboard-opportunities.jsonl --expected-as-of 2026-09-21 --output audit-output/opportunity-contract-audit.json
           cp checkpoints/dashboard-opportunities.json audit-output/evidence-snapshot-metadata.json
+          python scripts/research_opportunity_eligibility.py checkpoints/dashboard-opportunities.jsonl --output audit-output/opportunity-eligibility-research.json
       - name: Summary
         run: |
           python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
@@ -85,6 +86,16 @@ jobs:
           print("- securities:",c["securities"])
           print("- base IDs spanning security/pivot:",i["base_ids_spanning_security_or_pivot"])
           print("- lineage IDs spanning security/pivot:",i["lineage_ids_spanning_security_or_pivot"])
+          y=json.load(open("audit-output/opportunity-eligibility-research.json"))
+          d=y["distributions"]; k=y["cardinality"]
+          print()
+          print("## Eligibility research (descriptive only)")
+          print("- base IDs below pivot:",k["bases_below_pivot"])
+          print("- base IDs at/above pivot:",k["bases_at_or_above_pivot"])
+          print("- securities with multiple bases:",k["securities_with_multiple_bases"])
+          print("- lineages with multiple bases:",k["lineages_with_multiple_bases"])
+          print("- below-pivot gap quantiles:",d["below_pivot_gap_pct"])
+          print("- descriptive below-pivot distance bands:",y["descriptive_distance_bands_below_pivot"])
           PY
       - uses: actions/upload-artifact@v4
         with:
