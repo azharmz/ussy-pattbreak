@@ -1,0 +1,42 @@
+name: Publish validated dashboard v2 cohort
+on:
+  workflow_dispatch:
+permissions: {contents: read, actions: read}
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+      MORPHOLOGY_RUN_ID: "35428239292"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: pip install -e . pandas pyarrow boto3
+      - uses: actions/download-artifact@v4
+        with:
+          name: raw-oneil-morphology-${{ env.MORPHOLOGY_RUN_ID }}
+          path: upstream
+          run-id: ${{ env.MORPHOLOGY_RUN_ID }}
+          github-token: ${{ github.token }}
+      - run: python scripts/build_breakout_events_v2_shadow.py --input-dir upstream --output-dir checkpoints
+      - run: python scripts/build_t1_event_execution_v2.py --input-dir checkpoints --output-dir checkpoints
+      - run: python scripts/build_security_execution_v2.py --input-dir checkpoints --output-dir checkpoints
+      - name: Reconcile before publish
+        run: |
+          python - <<'PY'
+          import json
+          p="checkpoints/"
+          e=json.load(open(p+"breakout-events-v2.json")); t=json.load(open(p+"t1-event-execution-v2.json")); x=json.load(open(p+"security-execution-v2.json")); l=json.load(open(p+"lifecycle-v2.json"))
+          assert (e["summary"]["event_count"],t["summary"]["state_counts"]["EXECUTED_T1_OPEN"],x["summary"]["execution_count"],l["summary"]["position_count"])==(48,27,20,20)
+          assert e["summary"]["events_sha256"]=="d17c87499eba2df6079f9f19025972bd0bafbb69a0783b934855ca78f7ce1992"
+          PY
+      - name: Publish immutable v2 checkpoints
+        run: |
+          for s in breakout-events-v2 t1-event-execution-v2 security-execution-v2 lifecycle-v2; do python scripts/publish_v2_checkpoint.py --stage "$s" --dir checkpoints; done
+      - name: Atomically promote dashboard cohort
+        run: python scripts/promote_dashboard_v2_current.py --signal-date 2026-09-17
