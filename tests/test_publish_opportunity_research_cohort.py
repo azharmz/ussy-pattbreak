@@ -7,4 +7,4 @@ M=importlib.util.module_from_spec(S); S.loader.exec_module(M)
 
 def test_contract_prefix_is_research_only():
     assert "/research/" in M.PREFIX
-    assert "dashboard" not in M.PREFIX
+    assert M.PREFIX == "pattern-breakout/research/opportunity-cohorts"
