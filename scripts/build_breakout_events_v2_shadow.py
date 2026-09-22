@@ -77,9 +77,13 @@ def main():
       "competing_event_count":sum(e["competing_pivot"] for e in events),
       "competing_security_count":len({e["security_id"] for e in events if e["competing_pivot"]}),
       "events_sha256":hashlib.sha256(lines.encode()).hexdigest()}
-    expected={"2026-09-17":(426,293,133)}
+    expected={
+      "2026-09-17":{"counts":(426,293,133,48),"sha256":"d17c87499eba2df6079f9f19025972bd0bafbb69a0783b934855ca78f7ce1992"},
+      "2026-09-18":{"counts":(458,265,193,50),"sha256":"a79721966f2cc0257cf197972b3c3c3d500e90ad06606982c707f364b6a61e1f"},
+    }
     exp=expected.get(summary["as_of_date"])
-    if exp and (summary["v1_assessment_hits"],summary["first_qualifying_assessments"],summary["recycled_assessments"])!=exp:
+    actual=(summary["v1_assessment_hits"],summary["first_qualifying_assessments"],summary["recycled_assessments"],summary["event_count"])
+    if exp and (actual!=exp["counts"] or summary["events_sha256"]!=exp["sha256"]):
         raise ValueError(f"frozen baseline reconciliation failed: {summary}")
     (out/"breakout-events-v2-summary.json").write_text(json.dumps(summary,indent=2,sort_keys=True)+"\n")
     manifest={"stage":"breakout-events-v2","schema_version":"pattern-breakout-event-v2","contract_version":VERSION,
