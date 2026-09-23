@@ -3,7 +3,7 @@ name: Production dashboard v2 daily
 on:
   push:
     branches: [main]
-    paths: [.github/dispatch/pattern-projection-v17]
+    paths: [.github/dispatch/pattern-projection-v18]
   workflow_dispatch:
     inputs:
       signals_run_id:
