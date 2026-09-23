@@ -1,9 +1,6 @@
 # one-shot acceptance trigger: opportunity-v14-20260922
 name: Production dashboard v2 daily
 on:
-  push:
-    branches: [main]
-    paths: [.github/dispatch/production-v2-daily]
   workflow_dispatch:
     inputs:
       signals_run_id:
@@ -23,7 +20,7 @@ jobs:
       R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
       R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
       R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
-      SIGNALS_RUN_ID: ${{ github.event.inputs.signals_run_id || '35685769349' }}
+      SIGNALS_RUN_ID: ${{ inputs.signals_run_id }}
       DASHBOARD_SYNC_TOKEN: ${{ secrets.DASHBOARD_SYNC_TOKEN }}
     steps:
       - uses: actions/checkout@v4
