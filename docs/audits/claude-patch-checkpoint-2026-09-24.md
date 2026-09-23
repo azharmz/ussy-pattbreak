@@ -2,9 +2,11 @@
 
 ## Status
 
-**REFERENCE ONLY — NOT APPLIED.** This checkpoint records the patch supplied
-by the user as `D:/Download/claudeupdate.zip`. Its claims and test results have
-not been independently accepted or deployed by Codex.
+**APPLIED ON `codex/opportunity-contract-final` AFTER CODEX REVIEW.** This
+checkpoint records the patch supplied by the user as `D:/Download/claudeupdate.zip`.
+Codex verified that the supplied change resolves the v16/v18 version split and
+uses lifecycle, rather than the independent event pointer, as the position
+cohort date.
 
 ## Supplied files
 
@@ -26,7 +28,8 @@ not been independently accepted or deployed by Codex.
 ## Required review before applying
 
 - Diff each supplied file against current `origin/main`.
-- Run the focused JS integration suite and repository Python suite.
+- Run the focused JS integration suite and repository Python suite when their
+  runtimes are available.
 - Verify source and `web/public` mirrors remain identical.
 - Check `/api/health` and active D1 generation after deployment.
 - Do not infer that an older lifecycle date is a code bug: event and position
