@@ -75,6 +75,8 @@ jobs:
         run: |
           python scripts/build_breakout_events_v2_shadow.py --input-dir upstream --output-dir checkpoints
           python scripts/publish_v2_checkpoint.py --stage breakout-events-v2 --dir checkpoints
+          SIGNAL_DATE=$(python -c 'import json;print(json.load(open("checkpoints/breakout-events-v2.json"))["signal_date"])')
+          python scripts/promote_dashboard_events_current.py --signal-date "$SIGNAL_DATE"
       - name: Refresh D1 current projection
         run: |
           curl --fail-with-body --retry 3 --retry-delay 2 -X POST -H "Authorization: Bearer $DASHBOARD_SYNC_TOKEN" https://ussy-pattern-breakout.pages.dev/api/admin/sync
