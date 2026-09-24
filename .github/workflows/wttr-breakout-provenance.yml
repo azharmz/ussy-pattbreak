@@ -1,0 +1,36 @@
+name: Audit WTTR breakout provenance
+on:
+  push:
+    branches: [main]
+    paths: [.github/dispatch/wttr-breakout-provenance]
+permissions: {contents: read, actions: read}
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+      MORPHOLOGY_RUN_ID: "35428239292"
+      SECURITY_ID: "US81617J3014"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: pip install pandas pyarrow boto3
+      - uses: actions/download-artifact@v4
+        with:
+          name: raw-oneil-morphology-${{ env.MORPHOLOGY_RUN_ID }}
+          path: upstream
+          run-id: ${{ env.MORPHOLOGY_RUN_ID }}
+          github-token: ${{ github.token }}
+      - name: Audit exact event-builder semantics
+        run: python scripts/audit_security_breakout_provenance.py --security-id "$SECURITY_ID"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wttr-breakout-provenance-${{ github.run_id }}
+          path: audit/security-breakout-provenance.json
+          retention-days: 7
+          if-no-files-found: error
