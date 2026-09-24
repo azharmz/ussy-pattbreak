@@ -1,9 +1,6 @@
 name: Extract morphology audit slice
 
 on:
-  push:
-    branches: [main]
-    paths: [.github/dispatch/wttr-morphology-audit]
   workflow_dispatch:
     inputs:
       morphology_run_id:
@@ -23,8 +20,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      MORPHOLOGY_RUN_ID: ${{ inputs.morphology_run_id || '35428239292' }}
-      SECURITY_ID: ${{ inputs.security_id || 'US81617J3014' }}
+      MORPHOLOGY_RUN_ID: ${{ inputs.morphology_run_id }}
+      SECURITY_ID: ${{ inputs.security_id }}
     steps:
       - uses: actions/checkout@v4
       - name: Download frozen morphology checkpoint
