@@ -1,122 +1,68 @@
-name: Research CWH precision audit
+name: Research CWH 3Y training scan
 on:
   push:
     branches: [main]
     paths: [.github/dispatch/research-cwh-3y]
   workflow_dispatch:
-permissions: {contents: write}
+permissions: {contents: read}
 jobs:
-  audit:
+  scan:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 120
     env:
       R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
       R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
       R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
       R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
-      GH_TOKEN: ${{ github.token }}
-      C433_SHA: c433cc1e35a5aa32a46f732cd8c5545935e36e40
+      ONEIL_SHA: c433cc1e35a5aa32a46f732cd8c5545935e36e40
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: {python-version: "3.11"}
-      - name: Install pattbreak tooling
-        run: pip install -e . pandas pyarrow boto3
-      - name: Checkout frozen engine and HEAD engine
-        run: |
-          git clone --quiet https://github.com/azharmz/ussy-oneil-patterns.git _engine/c433
-          git -C _engine/c433 checkout --quiet "$C433_SHA"
-          git clone --quiet https://github.com/azharmz/ussy-oneil-patterns.git _engine/head
-          git -C _engine/head checkout --quiet main
-      - name: Download canonical history/ohlcv
-        run: |
-          mkdir -p history/ohlcv
-          aws s3 sync "s3://${R2_BUCKET_NAME}/history/ohlcv/" history/ohlcv/             --endpoint-url "$R2_ENDPOINT" --region auto --only-show-errors
-          echo "history files: $(find history/ohlcv -name '*.parquet' | wc -l)"
-      - name: Download old artifact
-        run: |
-          mkdir -p old-artifact
-          gh run download 36122641409 --repo "$GITHUB_REPOSITORY"             --name research-cwh-3y-36122641409 --dir old-artifact
-          ls -lh old-artifact
-      - name: Install c433 and run exact research scan
-        run: |
-          pip install ./_engine/c433
-          python scripts/research_cwh_scan.py --history-dir history/ohlcv             --window-years 3 --out-dir results/cwh-3y-c433cc1 --workers 4 2>&1 | tee c433-scan.log
-          grep 'selesai:' c433-scan.log | tail -1
-          python - <<'PY'
-          import json,sys
-          p='results/cwh-3y-c433cc1/research-cwh-3y.json'
-          d=json.load(open(p))
-          mism=sum(x.get('price_check')!='OK' for x in d['results'])
-          print('c433 price_check MISMATCH =', mism)
-          if mism:
-              sys.exit('STOP: price_check MISMATCH != 0')
-          PY
-      - name: Verify c433 against old artifact
+      - run: pip install -e . pandas pyarrow boto3
+      - uses: actions/checkout@v4
+        with:
+          repository: azharmz/ussy-oneil-patterns
+          ref: ${{ env.ONEIL_SHA }}
+          path: _frozen/ussy-oneil-patterns
+          persist-credentials: false
+      - run: pip install ./_frozen/ussy-oneil-patterns
+      - name: Scan canonical history/ohlcv over last 3 years
         run: |
           python - <<'PY'
-          import json,glob
-          old=json.load(open(glob.glob('old-artifact/*.json')[0]))
-          new=json.load(open('results/cwh-3y-c433cc1/research-cwh-3y.json'))
-          oi={x['assessment_id'] for x in old['results']}; ni={x['assessment_id'] for x in new['results']}
-          print('OLD assessments:',len(old['results']))
-          print('NEW c433 assessments:',len(new['results']))
-          print('assessment_id missing from new:',len(oi-ni))
-          print('assessment_id extra in new:',len(ni-oi))
-          if len(old['results']) != len(new['results']) or oi != ni:
-              print('ASSESSMENT_ID_DIFFERENCE=YES')
-          else:
-              print('ASSESSMENT_ID_DIFFERENCE=NO')
-          PY
-      - name: Analyze c433 scan
-        run: python scripts/analyze_cwh_scan.py results/cwh-3y-c433cc1/research-cwh-3y.json --out results/cwh-3y-c433cc1/analysis
-      - name: Install HEAD and run exact research scan
-        run: |
-          pip uninstall -y ussy-pattern-breakout oneil-patterns || true
-          pip install ./_engine/head
-          python scripts/research_cwh_scan.py --history-dir history/ohlcv             --window-years 3 --out-dir results/cwh-3y-head --workers 4 2>&1 | tee head-scan.log
-          grep 'selesai:' head-scan.log | tail -1
-          python - <<'PY'
-          import json,sys
-          p='results/cwh-3y-head/research-cwh-3y.json'
-          d=json.load(open(p))
-          mism=sum(x.get('price_check')!='OK' for x in d['results'])
-          print('HEAD price_check MISMATCH =', mism)
-          if mism:
-              sys.exit('STOP: HEAD price_check MISMATCH != 0')
-          PY
-      - name: Analyze HEAD scan
-        run: python scripts/analyze_cwh_scan.py results/cwh-3y-head/research-cwh-3y.json --out results/cwh-3y-head/analysis
-      - name: Compare requested figures
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          for tag in ['cwh-3y-c433cc1','cwh-3y-head']:
-              print(f'===== {tag} =====')
-              print((Path('results')/tag/'analysis'/'summary.txt').read_text())
+          import boto3, io, json, os, pandas as pd
+          from oneil_patterns.data.r2_ready import ReadyDataset
+          from oneil_patterns.production.engine import analyze_security
+          from oneil_patterns.production.runner import run_ready_dataset
+          s3=boto3.client("s3",endpoint_url=os.environ["R2_ENDPOINT"],aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],region_name="auto")
+          b=os.environ["R2_BUCKET_NAME"]
+          keys=[]
+          for page in s3.get_paginator("list_objects_v2").paginate(Bucket=b,Prefix="history/ohlcv/"):
+            keys += [x["Key"] for x in page.get("Contents",[]) if x["Key"].endswith(".parquet")]
+          records=[]; errors=[]
+          for i,key in enumerate(keys,1):
+            sid=key.rsplit("/",1)[-1].removesuffix(".parquet")
+            try:
+              df=pd.read_parquet(io.BytesIO(s3.get_object(Bucket=b,Key=key)["Body"].read()))
+              df["date"]=pd.to_datetime(df["date"],errors="raise").dt.tz_localize(None).dt.normalize()
+              end=df["date"].max(); start=end-pd.Timedelta(days=1096)
+              df=df[(df["date"]>=start)&(df["date"]<=end)].copy()
+              if len(df)<30: continue
+              ds=ReadyDataset(frame=df,manifest={"schema_version":2,"parquet_key":key,"sha256":"research-history-object","security_ids":[sid],"rows":len(df),"as_of_date":end.date().isoformat()})
+              res=run_ready_dataset(ds,asof_date=end.date(),analyze_security=analyze_security)
+              for line in res.jsonl.splitlines():
+                x=json.loads(line)
+                if x.get("pattern")=="CUP_WITH_HANDLE" and x.get("normalized_status")=="RECOGNIZED":
+                  x["_history_key"]=key; x["_window_start"]=start.date().isoformat(); x["_window_end"]=end.date().isoformat()
+                  records.append(x)
+            except Exception as e: errors.append({"security_id":sid,"key":key,"error":str(e)[:500]})
+            if i%50==0: print(f"SCAN {i}/{len(keys)} cwh={len(records)} errors={len(errors)}",flush=True)
+          payload={"engine_sha":os.environ["ONEIL_SHA"],"history_files":len(keys),"recognized_cwh":len(records),"errors":errors,"results":records}
+          open("research-cwh-3y.json","w").write(json.dumps(payload,indent=2))
+          print(json.dumps({"history_files":len(keys),"recognized_cwh":len(records),"errors":len(errors),"sample":records[:3]}))
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: cwh-precision-audit-${{ github.run_id }}
-          path: results/
+          name: research-cwh-3y-${{ github.run_id }}
+          path: research-cwh-3y.json
           retention-days: 7
-
-      - name: Commit research summary only
-        run: |
-          {
-            echo "CWH precision audit"
-            echo "run: $GITHUB_RUN_ID"
-            echo "engine_c433: $C433_SHA"
-            echo "engine_head: $(git -C _engine/head rev-parse HEAD)"
-            echo
-            echo "[c433]"
-            cat results/cwh-3y-c433cc1/analysis/summary.txt
-            echo
-            echo "[HEAD]"
-            cat results/cwh-3y-head/analysis/summary.txt
-          } > summary.txt
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add summary.txt
-          git commit -m "research: record CWH precision audit summary"
-          git push
