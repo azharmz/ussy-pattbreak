@@ -2,7 +2,7 @@ name: Research CWH precision audit
 on:
   push:
     branches: [main]
-    paths: [.github/dispatch/research-cwh-precision-audit]
+    paths: [.github/dispatch/research-cwh-3y]
   workflow_dispatch:
 permissions: {contents: write}
 jobs:
